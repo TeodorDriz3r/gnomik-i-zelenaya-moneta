@@ -1,0 +1,2280 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Гномик и зелёная монета</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+    body {
+      background: #1a1f2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    .game-wrapper {
+      background: #10131f;
+      padding: 20px;
+      border-radius: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+      text-align: center;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      border-radius: 16px;
+      background: #8bb8d4;
+      border: 3px solid #3a415a;
+    }
+    .info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 12px 10px 8px;
+      color: #b5c7e8;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .info span {
+      background: #181e2e;
+      padding: 4px 16px;
+      border-radius: 40px;
+      border: 1px solid #2f3850;
+    }
+    .controls {
+      margin-top: 10px;
+      color: #8a9bbf;
+      background: #181e2e;
+      padding: 8px 18px;
+      border-radius: 60px;
+      display: inline-block;
+      border: 1px solid #2f3850;
+      font-size: 16px;
+    }
+    .controls kbd {
+      background: #2f3850;
+      color: #fff;
+      padding: 2px 12px;
+      border-radius: 30px;
+      font-weight: bold;
+      margin: 0 4px;
+    }
+    button {
+      background: #3f5a8c;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      padding: 6px 24px;
+      border-radius: 60px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+      margin-left: 15px;
+    }
+    button:hover { background: #5a79b5; transform: scale(1.03); }
+    #message {
+      margin-top: 8px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #f7d44a;
+      height: 26px;
+    }
+    .canvas-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    #gameOverOverlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: rgba(0, 0, 0, 0.55);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      z-index: 5;
+    }
+    #gameOverOverlay.visible {
+      display: flex;
+    }
+    #gameOverOverlay .over-title {
+      font-size: 42px;
+      font-weight: bold;
+      color: #ff6b6b;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+    #gameOverOverlay .over-title.win {
+      color: #f7d44a;
+    }
+    #restartOverlayBtn {
+      margin-left: 0;
+      font-size: 22px;
+      padding: 14px 40px;
+      background: #c0392b;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+    }
+    #restartOverlayBtn:hover { background: #e74c3c; }
+  </style>
+</head>
+<body>
+<div class="game-wrapper">
+  <div class="canvas-wrap">
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+    <div id="gameOverOverlay">
+      <div class="over-title" id="overTitle">💀 КОНЕЦ</div>
+      <button id="restartOverlayBtn">🔄 Заново</button>
+    </div>
+  </div>
+  <div class="info">
+    <span>🪙 <span id="coinDisplay">0</span></span>
+    <span>❤️ <span id="livesDisplay">4</span></span>
+    <span>🏆 <span id="levelDisplay">Марио</span></span>
+    <button id="restartBtn">🔄 Заново</button>
+  </div>
+  <div class="controls" id="controlsHint">
+    <kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок
+  </div>
+  <div id="message"></div>
+</div>
+
+<script>
+  // ============================================================
+  //  ИГРА «ГНОМИК И ЗЕЛЁНАЯ МОНЕТА»
+  //  Платформер + бомбермен + босс-дракон
+  // ============================================================
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = 800, H = 450;
+
+  const coinSpan = document.getElementById('coinDisplay');
+  const livesSpan = document.getElementById('livesDisplay');
+  const levelSpan = document.getElementById('levelDisplay');
+  const messageDiv = document.getElementById('message');
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  const overTitle = document.getElementById('overTitle');
+
+  function showRestartOverlay(title, isWin) {
+    overTitle.textContent = title;
+    overTitle.classList.toggle('win', !!isWin);
+    gameOverOverlay.classList.add('visible');
+  }
+
+  function hideRestartOverlay() {
+    gameOverOverlay.classList.remove('visible');
+  }
+
+  const keys = {
+    ArrowLeft: false,
+    ArrowRight: false,
+    ArrowUp: false,
+    ArrowDown: false,
+    Space: false
+  };
+
+  function rand(min, max) { return Math.random() * (max - min) + min; }
+  function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+  function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
+  function rectCollide(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x &&
+           a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  const STATE = {
+    MENU: 0,
+    MAIN: 1,
+    BOMBER: 2,
+    BOSS: 3,
+    WIN: 4,
+    GAMEOVER: 5,
+    INTRO: 6,
+    OUTRO: 7
+  };
+
+  let gameState = STATE.INTRO;
+  let lives = 4;
+  let coins = 0;
+  let totalCoins = 0;
+  let greenCoinCollected = false;
+
+  let cutscene = null;
+
+  let player = null;
+  let platforms = [];
+  let enemies = [];
+  let coinObjects = [];
+  let fireballs = [];
+  let dragon = null;
+  let playerBullets = [];
+  let gunPickup = null;
+  let hasGun = false;
+  let gunFireCooldown = 0;
+
+  let bomberWalls = [];
+  let bomberEnemies = [];
+  let bomberExit = null;
+  let bomberBombs = [];
+  let bomberExplosions = [];
+  let bomberPlayer = null;
+  let bomberComplete = false;
+  let bomberBombKeyWasDown = false;
+  const BOMBER_CELL = 40;
+  const BOMBER_GRID_W = 20;
+  const BOMBER_GRID_H = 11;
+
+  let frame = 0;
+
+  class Player {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.w = 28;
+      this.h = 36;
+      this.vx = 0;
+      this.vy = 0;
+      this.onGround = false;
+      this.speed = 4;
+      this.jumpPower = -12;
+      this.gravity = 0.45;
+      this.facing = 1;
+      this.alive = true;
+      this.hasGun = false;
+    }
+
+    update() {
+      if (!this.alive) return;
+
+      if (keys.ArrowLeft) { this.vx = -this.speed; this.facing = -1; }
+      else if (keys.ArrowRight) { this.vx = this.speed; this.facing = 1; }
+      else { this.vx *= 0.8; if (Math.abs(this.vx) < 0.1) this.vx = 0; }
+
+      if ((keys.ArrowUp || keys.Space) && this.onGround) {
+        this.vy = this.jumpPower;
+        this.onGround = false;
+      }
+
+      this.vy += this.gravity;
+      if (this.vy > 12) this.vy = 12;
+
+      this.x += this.vx;
+      for (let p of platforms) {
+        if (rectCollide(this, p)) {
+          if (this.vx > 0) this.x = p.x - this.w;
+          else if (this.vx < 0) this.x = p.x + p.w;
+          this.vx = 0;
+        }
+      }
+
+      this.y += this.vy;
+      this.onGround = false;
+      for (let p of platforms) {
+        if (rectCollide(this, p)) {
+          if (this.vy > 0) {
+            this.y = p.y - this.h;
+            this.vy = 0;
+            this.onGround = true;
+          } else if (this.vy < 0) {
+            this.y = p.y + p.h;
+            this.vy = 0;
+          }
+        }
+      }
+
+      if (this.x < 0) this.x = 0;
+      if (this.x + this.w > W) this.x = W - this.w;
+      if (this.y > H + 50) this.alive = false;
+    }
+
+    draw(ctx) {
+      if (!this.alive) return;
+      ctx.save();
+      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.scale(this.facing, 1);
+      ctx.fillStyle = '#d44c4c';
+      ctx.beginPath();
+      ctx.arc(0, -4, 16, 0, Math.PI, true);
+      ctx.fill();
+      ctx.fillStyle = '#f7d8b0';
+      ctx.fillRect(-10, -4, 20, 16);
+      ctx.fillStyle = '#e0c8a0';
+      ctx.fillRect(-8, 6, 16, 10);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-6, -2, 4, 4);
+      ctx.fillRect(2, -2, 4, 4);
+      ctx.fillStyle = '#d49a6a';
+      ctx.beginPath();
+      ctx.arc(4, 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#6b4f3c';
+      ctx.fillRect(-8, 14, 6, 8);
+      ctx.fillRect(2, 14, 6, 8);
+      if (this.hasGun) {
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(8, 2, 22, 6);
+        ctx.fillStyle = '#1a252f';
+        ctx.fillRect(26, 3, 8, 4);
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(10, 8, 6, 8);
+      }
+      ctx.restore();
+    }
+  }
+
+  class Platform {
+    constructor(x, y, w, h, color = '#6b8c42') {
+      this.x = x; this.y = y; this.w = w; this.h = h;
+      this.color = color;
+    }
+    draw(ctx) {
+      ctx.fillStyle = this.color;
+      ctx.fillRect(this.x, this.y, this.w, this.h);
+      ctx.strokeStyle = '#4a6b2a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.x, this.y, this.w, this.h);
+    }
+  }
+
+  class Enemy {
+    constructor(x, y, w = 30, h = 30) {
+      this.x = x; this.y = y; this.w = w; this.h = h;
+      this.vx = 1.2;
+      this.alive = true;
+      this.type = 'walker';
+    }
+    update() {
+      if (!this.alive) return;
+      this.x += this.vx;
+      let onPlatform = false;
+      for (let p of platforms) {
+        if (this.y + this.h >= p.y && this.y + this.h <= p.y + p.h + 4 &&
+            this.x + this.w > p.x + 4 && this.x < p.x + p.w - 4) {
+          onPlatform = true;
+          if (this.x + this.w > p.x + p.w - 2) this.vx = -Math.abs(this.vx);
+          else if (this.x < p.x + 2) this.vx = Math.abs(this.vx);
+        }
+      }
+      if (!onPlatform) this.vx *= -1;
+    }
+    draw(ctx) {
+      if (!this.alive) return;
+      ctx.fillStyle = '#d44c4c';
+      ctx.beginPath();
+      ctx.arc(this.x + this.w / 2, this.y + 10, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f7d8b0';
+      ctx.fillRect(this.x + 4, this.y + 12, 22, 14);
+      ctx.fillStyle = '#222';
+      ctx.fillRect(this.x + 6, this.y + 6, 5, 5);
+      ctx.fillRect(this.x + this.w - 11, this.y + 6, 5, 5);
+      ctx.fillStyle = '#d9b382';
+      ctx.fillRect(this.x + 6, this.y + 20, 18, 10);
+    }
+  }
+
+  class Coin {
+    constructor(x, y, isGreen = false) {
+      this.x = x; this.y = y;
+      this.r = 12;
+      this.isGreen = isGreen;
+      this.collected = false;
+      this.anim = 0;
+    }
+    update() { this.anim += 0.05; }
+    draw(ctx) {
+      if (this.collected) return;
+      const r = this.r + Math.sin(this.anim) * 2;
+      ctx.save();
+      ctx.shadowColor = this.isGreen ? '#2ecc71' : '#f1c40f';
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = this.isGreen ? '#2ecc71' : '#f1c40f';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      ctx.arc(this.x - 4, this.y - 4, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  class Fireball {
+    constructor(x, y, vx, vy, r = 10) {
+      this.x = x; this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = r;
+      this.alive = true;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.15;
+      if (this.x < -30 || this.x > W + 30 || this.y > H + 30 || this.y < -40) this.alive = false;
+    }
+    draw(ctx) {
+      if (!this.alive) return;
+      ctx.save();
+      ctx.shadowColor = '#ff6b35';
+      ctx.shadowBlur = 20;
+      const grad = ctx.createRadialGradient(this.x, this.y, 2, this.x, this.y, this.r);
+      grad.addColorStop(0, '#ffd93d');
+      grad.addColorStop(0.7, '#ff6b35');
+      grad.addColorStop(1, '#c0392b');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  class PlayerBullet {
+    constructor(x, y, vx, vy) {
+      this.x = x; this.y = y;
+      this.vx = vx;
+      this.vy = vy;
+      this.r = 4;
+      this.alive = true;
+      this.life = 90;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.life--;
+      if (this.life <= 0 || this.x < -20 || this.x > W + 20 || this.y < -20 || this.y > H + 20) {
+        this.alive = false;
+      }
+    }
+    draw(ctx) {
+      if (!this.alive) return;
+      ctx.save();
+      ctx.shadowColor = '#f1c40f';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#ffe566';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  class GunPickup {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.w = 36;
+      this.h = 20;
+      this.anim = 0;
+      this.collected = false;
+    }
+    update() { this.anim += 0.08; }
+    draw(ctx) {
+      if (this.collected) return;
+      const bob = Math.sin(this.anim) * 5;
+      ctx.save();
+      ctx.translate(this.x, this.y + bob);
+      ctx.shadowColor = '#f39c12';
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = 'rgba(243,156,18,0.25)';
+      ctx.beginPath();
+      ctx.arc(18, 10, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(2, 6, 28, 8);
+      ctx.fillStyle = '#1a252f';
+      ctx.fillRect(26, 7, 10, 6);
+      ctx.fillStyle = '#7f8c8d';
+      ctx.fillRect(6, 14, 8, 10);
+      ctx.fillStyle = '#e67e22';
+      ctx.fillRect(10, 4, 6, 4);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('АВТОМАТ', 18, -8);
+      ctx.restore();
+    }
+  }
+
+  class Dragon {
+    constructor(x, y) {
+      this.x = x; this.y = y;
+      this.w = 70;
+      this.h = 60;
+      this.hp = 30;
+      this.maxHp = 30;
+      this.alive = true;
+      this.mode = 'chase';
+      this.modeTimer = 0;
+      this.jumpTimer = 0;
+      this.shootTimer = 0;
+      this.dashTimer = 0;
+      this.speedX = 3.2;
+      this.dir = -1;
+      this.vy = 0;
+      this.vx = 0;
+      this.onGround = false;
+      this.hurtTimer = 0;
+      this.flash = 0;
+    }
+
+    setMode(mode, duration) {
+      this.mode = mode;
+      this.modeTimer = duration;
+    }
+
+    update(playerX, playerY) {
+      if (!this.alive) return;
+      if (this.hurtTimer > 0) this.hurtTimer--;
+      if (this.flash > 0) this.flash--;
+      this.modeTimer--;
+
+      const cx = this.x + this.w / 2;
+      const cy = this.y + this.h / 2;
+      const dx = playerX + 14 - cx;
+      const dy = playerY + 18 - cy;
+      const dist = Math.hypot(dx, dy) || 1;
+
+      // Смена режимов для динамики
+      if (this.modeTimer <= 0 && this.mode !== 'dash') {
+        const roll = Math.random();
+        if (roll < 0.28) this.setMode('dash', 35);
+        else if (roll < 0.5) this.setMode('jump', 50);
+        else if (roll < 0.72) this.setMode('spray', 55);
+        else this.setMode('chase', 70 + Math.random() * 40);
+      }
+
+      if (this.mode === 'dash') {
+        this.dir = dx > 0 ? 1 : -1;
+        this.vx = this.dir * 9;
+        this.x += this.vx;
+        if (this.onGround && this.modeTimer % 12 === 0) {
+          this.vy = -6;
+          this.onGround = false;
+        }
+        if (this.modeTimer <= 0) {
+          this.vx = 0;
+          this.setMode('chase', 45);
+        }
+      } else if (this.mode === 'jump') {
+        this.dir = dx > 0 ? 1 : -1;
+        this.x += this.dir * 2.5;
+        if (this.onGround) {
+          this.vy = -13 - Math.random() * 3;
+          this.onGround = false;
+        }
+        if (this.modeTimer <= 0) this.setMode('chase', 40);
+      } else if (this.mode === 'spray') {
+        this.dir = dx > 0 ? 1 : -1;
+        this.x += Math.sin(frame * 0.15) * 2;
+        this.shootTimer++;
+        if (this.shootTimer > 8) {
+          this.shootTimer = 0;
+          for (let a = -0.6; a <= 0.6; a += 0.3) {
+            const ang = Math.atan2(dy, dx) + a;
+            fireballs.push(new Fireball(cx, cy, Math.cos(ang) * 5.5, Math.sin(ang) * 5.5, 9));
+          }
+        }
+        if (this.modeTimer <= 0) this.setMode('chase', 50);
+      } else {
+        // chase
+        this.dir = dx > 0 ? 1 : -1;
+        if (Math.abs(dx) > 20) this.x += this.dir * this.speedX;
+        this.jumpTimer++;
+        if (this.onGround && this.jumpTimer > 35) {
+          if (playerY < this.y - 20) this.vy = -12;
+          else if (playerY > this.y + 40) this.vy = -5;
+          else this.vy = -9 - Math.random() * 4;
+          this.onGround = false;
+          this.jumpTimer = 0;
+        }
+        this.shootTimer++;
+        if (this.shootTimer > 22) {
+          this.shootTimer = 0;
+          const ang = Math.atan2(dy, dx);
+          const spd = 5 + Math.random();
+          fireballs.push(new Fireball(cx, this.y + 12, Math.cos(ang) * spd, Math.sin(ang) * spd + 0.2));
+          if (Math.random() < 0.45) {
+            fireballs.push(new Fireball(cx, this.y + 12, Math.cos(ang + 0.35) * spd, Math.sin(ang + 0.35) * spd));
+            fireballs.push(new Fireball(cx, this.y + 12, Math.cos(ang - 0.35) * spd, Math.sin(ang - 0.35) * spd));
+          }
+        }
+      }
+
+      this.vy += 0.55;
+      if (this.vy > 15) this.vy = 15;
+      const prevBottom = this.y + this.h;
+      this.y += this.vy;
+
+      this.onGround = false;
+      for (let p of platforms) {
+        const feetNow = this.y + this.h;
+        const overlapX = this.x + this.w > p.x + 4 && this.x < p.x + p.w - 4;
+        const landedFromAbove = prevBottom <= p.y + 6 && feetNow >= p.y && this.vy >= 0;
+        if (overlapX && landedFromAbove) {
+          this.y = p.y - this.h;
+          this.vy = 0;
+          this.onGround = true;
+          break;
+        }
+      }
+
+      if (this.x < 0) { this.x = 0; if (this.mode === 'dash') this.setMode('chase', 40); }
+      if (this.x + this.w > W) { this.x = W - this.w; if (this.mode === 'dash') this.setMode('chase', 40); }
+      if (this.y > H + 50) { this.alive = false; return; }
+    }
+
+    takeHit(dmg) {
+      this.hp -= dmg;
+      this.hurtTimer = 10;
+      this.flash = 8;
+      if (this.hp <= 0) {
+        this.hp = 0;
+        this.alive = false;
+      }
+      return true;
+    }
+
+    draw(ctx) {
+      if (!this.alive) return;
+      ctx.save();
+      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      if (this.flash > 0) ctx.globalAlpha = 0.55 + Math.sin(frame) * 0.2;
+      const body = this.mode === 'dash' ? '#c62828' : '#2e7d32';
+      ctx.fillStyle = body;
+      ctx.shadowColor = '#1b5e20';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, this.w / 2, this.h / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#388e3c';
+      ctx.beginPath();
+      ctx.arc(this.dir * 20, -10, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffeb3b';
+      ctx.beginPath();
+      ctx.arc(this.dir * 24, -14, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#c62828';
+      ctx.beginPath();
+      ctx.arc(this.dir * 26, -14, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1b5e20';
+      ctx.beginPath();
+      ctx.moveTo(-10, -20);
+      ctx.lineTo(-30, -40);
+      ctx.lineTo(-20, -20);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(10, -20);
+      ctx.lineTo(30, -40);
+      ctx.lineTo(20, -20);
+      ctx.fill();
+      ctx.fillStyle = '#2e7d32';
+      ctx.beginPath();
+      ctx.moveTo(-this.dir * 30, 10);
+      ctx.lineTo(-this.dir * 50, 20);
+      ctx.lineTo(-this.dir * 30, 0);
+      ctx.fill();
+      ctx.fillStyle = '#c62828';
+      for (let i = -4; i <= 4; i += 2) {
+        ctx.beginPath();
+        ctx.moveTo(i * 6, -20);
+        ctx.lineTo(i * 6 + 6, -30);
+        ctx.lineTo(i * 6 + 6, -20);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      ctx.fillStyle = '#333';
+      ctx.fillRect(this.x, this.y - 20, this.w, 8);
+      ctx.fillStyle = '#c62828';
+      ctx.fillRect(this.x + 2, this.y - 18, (this.w - 4) * (this.hp / this.maxHp), 4);
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('❤️ ' + this.hp, this.x + this.w / 2, this.y - 26);
+    }
+  }
+
+  function generateMainLevel() {
+    platforms = [];
+    enemies = [];
+    coinObjects = [];
+    fireballs = [];
+    playerBullets = [];
+    gunPickup = null;
+    hasGun = false;
+    gunFireCooldown = 0;
+    dragon = null;
+    greenCoinCollected = false;
+    coins = 0;
+    totalCoins = 0;
+
+    platforms.push(new Platform(0, H - 40, 800, 40, '#6b8c42'));
+    platforms.push(new Platform(120, 330, 120, 20, '#8b6b4a'));
+    platforms.push(new Platform(300, 270, 120, 20, '#8b6b4a'));
+    platforms.push(new Platform(500, 320, 120, 20, '#8b6b4a'));
+    platforms.push(new Platform(700, 260, 100, 20, '#8b6b4a'));
+    platforms.push(new Platform(100, 200, 60, 20, '#a67c52'));
+    platforms.push(new Platform(200, 150, 60, 20, '#a67c52'));
+    platforms.push(new Platform(400, 160, 80, 20, '#a67c52'));
+    platforms.push(new Platform(600, 180, 80, 20, '#a67c52'));
+
+    enemies.push(new Enemy(150, H - 40 - 30));
+    enemies.push(new Enemy(350, H - 40 - 30));
+    enemies.push(new Enemy(550, H - 40 - 30));
+    enemies.push(new Enemy(720, H - 40 - 30));
+    let e = new Enemy(130, 330 - 30);
+    e.vx = 0.8;
+    enemies.push(e);
+    let e2 = new Enemy(330, 270 - 30);
+    e2.vx = 1.0;
+    enemies.push(e2);
+
+    const coinPositions = [
+      [80, 370], [160, 370], [240, 370],
+      [320, 290], [380, 290],
+      [520, 340], [580, 340],
+      [700, 280], [750, 280],
+      [100, 220], [240, 170], [350, 180],
+      [430, 180], [550, 200], [650, 200]
+    ];
+    const greenIdx = randInt(0, coinPositions.length - 1);
+    for (let i = 0; i < coinPositions.length; i++) {
+      const [cx, cy] = coinPositions[i];
+      const isGreen = (i === greenIdx);
+      coinObjects.push(new Coin(cx, cy, isGreen));
+      if (!isGreen) totalCoins++;
+    }
+    const extra = [
+      [60, 200], [190, 150], [290, 150], [490, 160], [620, 180]
+    ];
+    for (let [cx, cy] of extra) {
+      coinObjects.push(new Coin(cx, cy, false));
+      totalCoins++;
+    }
+
+    player = spawnMarioPlayer();
+  }
+
+  // Спавн на земле слева, без пересечения с блоками
+  function spawnMarioPlayer(opts) {
+    opts = opts || {};
+    const x = opts.x != null ? opts.x : 36;
+    const p = new Player(x, 0);
+    p.alive = true;
+    if (opts.hasGun) p.hasGun = true;
+
+    // Встать на верхнюю поверхность под ногами (земля / платформа)
+    let standY = H - 40;
+    for (let plat of platforms) {
+      if (x + p.w > plat.x + 2 && x < plat.x + plat.w - 2) {
+        if (plat.y < standY) standY = plat.y;
+      }
+    }
+    // Берём только землю у старта: не телепортировать на высокие полки
+    standY = H - 40;
+    p.y = standY - p.h;
+
+    // Если всё же внутри блока — вытолкнуть наверх
+    for (let guard = 0; guard < 30; guard++) {
+      let hit = null;
+      for (let plat of platforms) {
+        if (rectCollide(p, plat)) { hit = plat; break; }
+      }
+      if (!hit) break;
+      p.y = hit.y - p.h;
+      p.vy = 0;
+      p.onGround = true;
+    }
+
+    p.vx = 0;
+    p.vy = 0;
+    p.onGround = true;
+    return p;
+  }
+
+  function generateBomberLevel() {
+    bomberWalls = [];
+    bomberEnemies = [];
+    bomberBombs = [];
+    bomberExplosions = [];
+    bomberExit = null;
+    bomberComplete = false;
+    bomberBombKeyWasDown = false;
+
+    const cell = BOMBER_CELL;
+    const gridW = BOMBER_GRID_W, gridH = BOMBER_GRID_H;
+    const hard = {};
+    const soft = {};
+
+    for (let i = 0; i < gridW; i++) {
+      for (let j = 0; j < gridH; j++) {
+        if (i === 0 || i === gridW - 1 || j === 0 || j === gridH - 1) {
+          hard[i + ',' + j] = true;
+          bomberWalls.push({ x: i * cell, y: j * cell, w: cell, h: cell, solid: true, breakable: false });
+        } else if (i % 2 === 0 && j % 2 === 0) {
+          hard[i + ',' + j] = true;
+          bomberWalls.push({ x: i * cell, y: j * cell, w: cell, h: cell, solid: true, breakable: false });
+        }
+      }
+    }
+
+    // Зона старта гномика без блоков
+    const clearStart = { '1,1': 1, '2,1': 1, '1,2': 1, '2,2': 1 };
+    bomberExit = { x: (gridW - 2) * cell, y: (gridH - 2) * cell, w: cell, h: cell };
+    const exitKey = (gridW - 2) + ',' + (gridH - 2);
+
+    for (let i = 1; i < gridW - 1; i++) {
+      for (let j = 1; j < gridH - 1; j++) {
+        const key = i + ',' + j;
+        if (hard[key] || clearStart[key]) continue;
+        // Мягкие блоки — нужно взрывать; выход спрятан под блоком
+        if (key === exitKey || Math.random() < 0.62) {
+          soft[key] = true;
+          bomberWalls.push({
+            x: i * cell, y: j * cell, w: cell, h: cell,
+            solid: true, breakable: true
+          });
+        }
+      }
+    }
+
+    const enemyPos = [
+      [3, 3], [5, 5], [7, 3], [9, 7], [12, 4], [15, 8], [17, 5], [4, 8], [14, 2]
+    ];
+    for (let [gi, gj] of enemyPos) {
+      if (hard[gi + ',' + gj]) continue;
+      // убрать мягкий блок под врагом
+      bomberWalls = bomberWalls.filter(w => !(w.breakable && w.x === gi * cell && w.y === gj * cell));
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const d = dirs[randInt(0, 3)];
+      const spd = 1.15;
+      bomberEnemies.push({
+        x: gi * cell + 5,
+        y: gj * cell + 5,
+        w: 30, h: 30,
+        vx: d[0] * spd,
+        vy: d[1] * spd,
+        speed: spd,
+        alive: true,
+        turnTimer: randInt(40, 100)
+      });
+    }
+
+    bomberPlayer = {
+      x: cell * 2,
+      y: cell * 2,
+      w: 28, h: 28,
+      vx: 0, vy: 0,
+      alive: true,
+      speed: 3
+    };
+  }
+
+  function bomberSolidAt(gx, gy, ignoreBreakable) {
+    if (gx < 0 || gy < 0 || gx >= BOMBER_GRID_W || gy >= BOMBER_GRID_H) return true;
+    for (let wall of bomberWalls) {
+      if (!wall.solid) continue;
+      if (ignoreBreakable && wall.breakable) continue;
+      if (wall.x === gx * BOMBER_CELL && wall.y === gy * BOMBER_CELL) return true;
+    }
+    return false;
+  }
+
+  function pickBomberEnemyDir(e) {
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    // перемешать
+    for (let i = dirs.length - 1; i > 0; i--) {
+      const j = randInt(0, i);
+      [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+    }
+    const gx = Math.floor((e.x + e.w / 2) / BOMBER_CELL);
+    const gy = Math.floor((e.y + e.h / 2) / BOMBER_CELL);
+    for (let [dx, dy] of dirs) {
+      if (!bomberSolidAt(gx + dx, gy + dy)) {
+        e.vx = dx * e.speed;
+        e.vy = dy * e.speed;
+        return;
+      }
+    }
+    e.vx = 0;
+    e.vy = 0;
+  }
+
+  function placeBomberBomb() {
+    if (!bomberPlayer || !bomberPlayer.alive) return;
+    const cell = BOMBER_CELL;
+    const gx = Math.floor((bomberPlayer.x + bomberPlayer.w / 2) / cell);
+    const gy = Math.floor((bomberPlayer.y + bomberPlayer.h / 2) / cell);
+    const bx = gx * cell, by = gy * cell;
+    if (bomberBombs.some(b => b.x === bx && b.y === by)) return;
+    bomberBombs.push({ x: bx, y: by, w: cell, h: cell, timer: 100, range: 2 });
+  }
+
+  function explodeBomberBomb(bomb) {
+    const cell = BOMBER_CELL;
+    const gx = bomb.x / cell;
+    const gy = bomb.y / cell;
+    const hitCells = [[gx, gy]];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+    for (let [dx, dy] of dirs) {
+      for (let r = 1; r <= bomb.range; r++) {
+        const cx = gx + dx * r;
+        const cy = gy + dy * r;
+        let blocked = false;
+        let brokeSoft = false;
+        for (let i = bomberWalls.length - 1; i >= 0; i--) {
+          const wall = bomberWalls[i];
+          if (wall.x === cx * cell && wall.y === cy * cell) {
+            if (wall.breakable) {
+              bomberWalls.splice(i, 1);
+              brokeSoft = true;
+            } else {
+              blocked = true;
+            }
+            break;
+          }
+        }
+        if (blocked) break;
+        hitCells.push([cx, cy]);
+        if (brokeSoft) break;
+      }
+    }
+
+    for (let [cx, cy] of hitCells) {
+      bomberExplosions.push({
+        x: cx * cell, y: cy * cell, w: cell, h: cell, timer: 22
+      });
+      for (let e of bomberEnemies) {
+        if (!e.alive) continue;
+        const egx = Math.floor((e.x + e.w / 2) / cell);
+        const egy = Math.floor((e.y + e.h / 2) / cell);
+        if (egx === cx && egy === cy) e.alive = false;
+      }
+      if (bomberPlayer && bomberPlayer.alive) {
+        const pgx = Math.floor((bomberPlayer.x + bomberPlayer.w / 2) / cell);
+        const pgy = Math.floor((bomberPlayer.y + bomberPlayer.h / 2) / cell);
+        if (pgx === cx && pgy === cy) bomberPlayer.alive = false;
+      }
+    }
+  }
+
+  function initGame() {
+    lives = 4;
+    hideRestartOverlay();
+    generateMainLevel();
+    updateUI();
+    startIntroCutscene();
+  }
+
+  function startIntroCutscene() {
+    gameState = STATE.INTRO;
+    levelSpan.textContent = 'Начало';
+    messageDiv.textContent = '';
+    document.getElementById('controlsHint').innerHTML =
+      'История... &nbsp;|&nbsp; <kbd>Пробел</kbd> – пропустить';
+    cutscene = {
+      kind: 'intro',
+      t: 0,
+      skipArmed: false,
+      gnomeX: 280,
+      princessX: 480,
+      dragonX: 900,
+      dragonY: 120,
+      princessHeld: false,
+      hearts: [],
+      caption: ''
+    };
+  }
+
+  function startOutroCutscene() {
+    gameState = STATE.OUTRO;
+    levelSpan.textContent = 'Финал';
+    messageDiv.textContent = '';
+    hideRestartOverlay();
+    document.getElementById('controlsHint').innerHTML =
+      'Финал... &nbsp;|&nbsp; <kbd>Пробел</kbd> – пропустить';
+    cutscene = {
+      kind: 'outro',
+      t: 0,
+      skipArmed: false,
+      gnomeX: 200,
+      princessX: 520,
+      princessAngry: false,
+      princessRun: false,
+      hardKiss: false,
+      hearts: [],
+      swears: [],
+      kids: [
+        { x: 560, y: 0, lag: 28, hue: '#5dade2' },
+        { x: 600, y: 0, lag: 48, hue: '#58d68d' },
+        { x: 640, y: 0, lag: 68, hue: '#f5b041' }
+      ],
+      caption: ''
+    };
+  }
+
+  function finishIntro() {
+    cutscene = null;
+    for (let k in keys) keys[k] = false;
+    gameState = STATE.MAIN;
+    levelSpan.textContent = 'Марио';
+    messageDiv.textContent = 'Спаси принцессу!';
+    document.getElementById('controlsHint').innerHTML =
+      '<kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок';
+    setTimeout(() => {
+      if (messageDiv.textContent === 'Спаси принцессу!') messageDiv.textContent = '';
+    }, 2000);
+  }
+
+  function finishOutro() {
+    cutscene = null;
+    for (let k in keys) keys[k] = false;
+    gameState = STATE.WIN;
+    messageDiv.textContent = '🎉 ПОБЕДА! Принцесса сбежала с детьми...';
+    showRestartOverlay('🏆 ПОБЕДА!', true);
+  }
+
+  function drawCutsceneGnome(ctx, x, y, facing, opts) {
+    opts = opts || {};
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+    ctx.fillStyle = '#d44c4c';
+    ctx.beginPath();
+    ctx.arc(0, -8, 18, 0, Math.PI, true);
+    ctx.fill();
+    ctx.fillStyle = '#f7d8b0';
+    ctx.fillRect(-12, -8, 24, 18);
+    ctx.fillStyle = '#e0c8a0';
+    ctx.fillRect(-10, 6, 20, 12);
+    ctx.fillStyle = '#222';
+    if (opts.shocked) {
+      ctx.beginPath();
+      ctx.arc(-5, -2, 3.5, 0, Math.PI * 2);
+      ctx.arc(5, -2, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-5, -2, 1.5, 0, Math.PI * 2);
+      ctx.arc(5, -2, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(2, 8, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (opts.sad) {
+      ctx.fillRect(-7, -3, 5, 5);
+      ctx.fillRect(2, -3, 5, 5);
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 12, 5, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+    } else {
+      ctx.fillRect(-7, -3, 5, 5);
+      ctx.fillRect(2, -3, 5, 5);
+    }
+    ctx.fillStyle = '#d49a6a';
+    ctx.beginPath();
+    ctx.arc(5, 2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#6b4f3c';
+    ctx.fillRect(-10, 18, 8, 10);
+    ctx.fillRect(2, 18, 8, 10);
+    if (opts.kiss) {
+      ctx.fillStyle = '#e91e63';
+      ctx.beginPath();
+      ctx.ellipse(opts.hardKiss ? 18 : 14, 4, opts.hardKiss ? 8 : 5, opts.hardKiss ? 5 : 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (opts.hardKiss) {
+      // руки гномика «хватают» при поцелуе
+      ctx.fillStyle = '#f7d8b0';
+      ctx.fillRect(10, 6, 16, 7);
+      ctx.fillRect(12, 12, 14, 7);
+    }
+    ctx.restore();
+  }
+
+  function drawCutsceneChild(ctx, x, y, facing, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+    ctx.fillStyle = color || '#5dade2';
+    ctx.beginPath();
+    ctx.arc(0, -2, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f7d8b0';
+    ctx.beginPath();
+    ctx.arc(0, 2, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-4, 0, 2, 2);
+    ctx.fillRect(2, 0, 2, 2);
+    ctx.fillStyle = color || '#5dade2';
+    ctx.fillRect(-7, 10, 14, 12);
+    ctx.fillStyle = '#6b4f3c';
+    ctx.fillRect(-6, 20, 5, 6);
+    ctx.fillRect(1, 20, 5, 6);
+    ctx.restore();
+  }
+
+  function drawSwearBubble(ctx, x, y, text) {
+    ctx.save();
+    const w = Math.max(70, text.length * 9);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#c0392b';
+    ctx.lineWidth = 3;
+    ctx.fillRect(x - w / 2, y - 28, w, 28);
+    ctx.strokeRect(x - w / 2, y - 28, w, 28);
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y);
+    ctx.lineTo(x, y + 10);
+    ctx.lineTo(x + 6, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#c0392b';
+    ctx.font = 'bold 13px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y - 14);
+    ctx.restore();
+  }
+
+  function drawCutscenePrincess(ctx, x, y, facing, opts) {
+    opts = opts || {};
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+
+    const skin = opts.angry ? '#f0c4a8' : '#ffe0c2';
+    const dressMain = opts.angry ? '#8e44ad' : '#ff4d8d';
+    const dressLight = opts.angry ? '#bb8fce' : '#ff8fb8';
+    const hair = '#f4c430';
+    const hairDark = '#d4a017';
+
+    // длинные волосы сзади
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.ellipse(-12, 6, 9, 26, 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(12, 6, 9, 26, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = hairDark;
+    ctx.beginPath();
+    ctx.ellipse(-14, 16, 4.5, 12, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(14, 16, 4.5, 12, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // узкое платье
+    const dressGrad = ctx.createLinearGradient(0, 8, 0, 38);
+    dressGrad.addColorStop(0, dressLight);
+    dressGrad.addColorStop(1, dressMain);
+    ctx.fillStyle = dressGrad;
+    ctx.beginPath();
+    ctx.moveTo(-6, 10);
+    ctx.quadraticCurveTo(-14, 20, -12, 38);
+    ctx.lineTo(12, 38);
+    ctx.quadraticCurveTo(14, 20, 6, 10);
+    ctx.closePath();
+    ctx.fill();
+    // оборка
+    ctx.fillStyle = opts.angry ? '#d2b4de' : '#ffc1d6';
+    ctx.beginPath();
+    ctx.moveTo(-12, 36);
+    for (let i = -10; i <= 10; i += 5) {
+      ctx.quadraticCurveTo(i, 40, i + 2.5, 36);
+    }
+    ctx.lineTo(12, 38);
+    ctx.lineTo(-12, 38);
+    ctx.fill();
+    // корсет / талия
+    ctx.fillStyle = opts.angry ? '#6c3483' : '#e91e63';
+    ctx.beginPath();
+    ctx.moveTo(-5, 10);
+    ctx.lineTo(5, 10);
+    ctx.lineTo(4, 20);
+    ctx.lineTo(-4, 20);
+    ctx.closePath();
+    ctx.fill();
+    // блеск на платье
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(-4, 26, 3, 7, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    // руки
+    ctx.fillStyle = skin;
+    if (opts.hardKiss) {
+      ctx.beginPath();
+      ctx.ellipse(-16, 12, 3.5, 10, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(11, 14, 3.2, 9, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(-11, 16, 3.2, 10, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(11, 16, 3.2, 10, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // шея
+    ctx.fillStyle = skin;
+    ctx.fillRect(-3, 6, 6, 8);
+
+    // голова
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(0, -2, 13, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // чёлка / волосы сверху
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.ellipse(0, -12, 14, 11, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(-9, -6, 6, 8, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(9, -6, 6, 8, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // локон на лице
+    ctx.fillStyle = hairDark;
+    ctx.beginPath();
+    ctx.ellipse(-10, 2, 2.5, 7, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // корона
+    ctx.fillStyle = '#ffd700';
+    ctx.beginPath();
+    ctx.moveTo(-10, -18);
+    ctx.lineTo(-7, -29);
+    ctx.lineTo(-3, -20);
+    ctx.lineTo(0, -31);
+    ctx.lineTo(3, -20);
+    ctx.lineTo(7, -29);
+    ctx.lineTo(10, -18);
+    ctx.lineTo(10, -14);
+    ctx.lineTo(-10, -14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fff8dc';
+    ctx.fillRect(-10, -16, 20, 3);
+    // камни в короне
+    ctx.fillStyle = '#ff6b9d';
+    ctx.beginPath();
+    ctx.arc(0, -24, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5dade2';
+    ctx.beginPath();
+    ctx.arc(-7, -22, 2.2, 0, Math.PI * 2);
+    ctx.arc(7, -22, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // румянец
+    if (!opts.angry) {
+      ctx.fillStyle = 'rgba(255,120,140,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(-9, 4, 4, 2.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(9, 4, 4, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // глаза / лицо
+    if (opts.angry) {
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(-6, -2, 4, 3.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(6, -2, 4, 3.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#6c3483';
+      ctx.beginPath();
+      ctx.arc(-5.5, -1.5, 2.2, 0, Math.PI * 2);
+      ctx.arc(6.5, -1.5, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(-5.5, -1.5, 1, 0, Math.PI * 2);
+      ctx.arc(6.5, -1.5, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5d4e37';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-10, -8);
+      ctx.lineTo(-3, -5);
+      ctx.moveTo(10, -8);
+      ctx.lineTo(3, -5);
+      ctx.stroke();
+      ctx.strokeStyle = '#c0392b';
+      ctx.beginPath();
+      ctx.moveTo(-5, 8);
+      ctx.quadraticCurveTo(0, 5, 5, 8);
+      ctx.stroke();
+    } else if (opts.kiss) {
+      // закрытые глаза с ресницами
+      ctx.strokeStyle = '#5d4e37';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(-6, -2, 4, 0.2, Math.PI - 0.2);
+      ctx.arc(6, -2, 4, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+      // ресницы
+      ctx.beginPath();
+      ctx.moveTo(-9, -4);
+      ctx.lineTo(-11, -7);
+      ctx.moveTo(-6, -5);
+      ctx.lineTo(-6, -8);
+      ctx.moveTo(9, -4);
+      ctx.lineTo(11, -7);
+      ctx.moveTo(6, -5);
+      ctx.lineTo(6, -8);
+      ctx.stroke();
+      ctx.fillStyle = opts.hardKiss ? '#ff2d6a' : '#ff5a8a';
+      ctx.beginPath();
+      ctx.ellipse(opts.hardKiss ? -13 : -11, 5, opts.hardKiss ? 7 : 5, opts.hardKiss ? 4 : 3, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+      if (opts.hardKiss) {
+        ctx.strokeStyle = '#5d4e37';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-9, -8);
+        ctx.lineTo(-3, -5);
+        ctx.moveTo(9, -8);
+        ctx.lineTo(3, -5);
+        ctx.stroke();
+      }
+    } else {
+      // красивые глаза
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(-6, -2, 5, 5.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(6, -2, 5, 5.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // радужка
+      ctx.fillStyle = '#5dade2';
+      ctx.beginPath();
+      ctx.arc(-5.5, -1.5, 3, 0, Math.PI * 2);
+      ctx.arc(6.5, -1.5, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1a5276';
+      ctx.beginPath();
+      ctx.arc(-5.5, -1.5, 1.6, 0, Math.PI * 2);
+      ctx.arc(6.5, -1.5, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      // блик
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-4.2, -2.8, 1.2, 0, Math.PI * 2);
+      ctx.arc(7.8, -2.8, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      // ресницы
+      ctx.strokeStyle = '#5d4e37';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-10, -5);
+      ctx.lineTo(-12, -8);
+      ctx.moveTo(-7, -7);
+      ctx.lineTo(-7, -10);
+      ctx.moveTo(10, -5);
+      ctx.lineTo(12, -8);
+      ctx.moveTo(7, -7);
+      ctx.lineTo(7, -10);
+      ctx.stroke();
+      // брови тонкие
+      ctx.beginPath();
+      ctx.moveTo(-10, -9);
+      ctx.quadraticCurveTo(-6, -11, -2, -9);
+      ctx.moveTo(10, -9);
+      ctx.quadraticCurveTo(6, -11, 2, -9);
+      ctx.stroke();
+      // улыбка
+      ctx.strokeStyle = '#e74c6f';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 5, 5, 0.15, Math.PI - 0.15);
+      ctx.stroke();
+      // губы чуть заполнены
+      ctx.fillStyle = 'rgba(255,90,130,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, 7, 4, 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ожерелье
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 10, 7, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+    ctx.fillStyle = '#5dade2';
+    ctx.beginPath();
+    ctx.arc(0, 16, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawCutsceneDragon(ctx, x, y, facing) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
+    ctx.fillStyle = '#2e7d32';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 40, 28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#388e3c';
+    ctx.beginPath();
+    ctx.arc(28, -8, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffeb3b';
+    ctx.beginPath();
+    ctx.arc(32, -12, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c62828';
+    ctx.beginPath();
+    ctx.arc(34, -12, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    // крылья
+    ctx.fillStyle = '#1b5e20';
+    ctx.beginPath();
+    ctx.moveTo(-5, -15);
+    ctx.lineTo(-35, -45);
+    ctx.lineTo(-15, -10);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(5, -15);
+    ctx.lineTo(25, -50);
+    ctx.lineTo(15, -10);
+    ctx.fill();
+    // лапы
+    ctx.fillStyle = '#1b5e20';
+    ctx.fillRect(-20, 20, 12, 10);
+    ctx.fillRect(8, 20, 12, 10);
+    ctx.restore();
+  }
+
+  function drawCutsceneBackdrop() {
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#7ec8e8');
+    grad.addColorStop(0.55, '#b8dfeb');
+    grad.addColorStop(0.55, '#6b8c42');
+    grad.addColorStop(1, '#4a6b2a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    // замок
+    ctx.fillStyle = '#b0bec5';
+    ctx.fillRect(560, 160, 160, 160);
+    ctx.fillStyle = '#90a4ae';
+    ctx.fillRect(540, 120, 50, 200);
+    ctx.fillRect(690, 120, 50, 200);
+    ctx.fillStyle = '#c62828';
+    ctx.beginPath();
+    ctx.moveTo(530, 120);
+    ctx.lineTo(565, 80);
+    ctx.lineTo(600, 120);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(680, 120);
+    ctx.lineTo(715, 80);
+    ctx.lineTo(750, 120);
+    ctx.fill();
+    ctx.fillStyle = '#fff59d';
+    ctx.fillRect(590, 200, 30, 40);
+    ctx.fillRect(660, 200, 30, 40);
+    // земля линия
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(0, 318, W, 4);
+  }
+
+  function updateCutscene() {
+    if (!cutscene) return;
+    const c = cutscene;
+    c.t++;
+
+    // Пропуск по пробелу (после короткой паузы)
+    if (c.t > 20 && keys.Space) {
+      if (c.kind === 'intro') finishIntro();
+      else finishOutro();
+      return;
+    }
+
+    if (c.kind === 'intro') {
+      // 0–70: сближение
+      if (c.t < 70) {
+        c.caption = 'Гномик и принцесса...';
+        c.gnomeX += 1.1;
+        c.princessX -= 1.1;
+      }
+      // 70–150: поцелуй
+      else if (c.t < 150) {
+        c.caption = '💕 Настоящая любовь!';
+        if (c.t % 8 === 0) {
+          c.hearts.push({ x: 390 + rand(-20, 20), y: 240, life: 60, vx: rand(-0.5, 0.5) });
+        }
+      }
+      // 150–200: дракон появляется
+      else if (c.t < 200) {
+        c.caption = 'О нет! Дракон!';
+        c.dragonX -= 8;
+      }
+      // 200–280: хватает и уносит
+      else if (c.t < 280) {
+        c.caption = 'Босс украл принцессу!';
+        c.princessHeld = true;
+        c.dragonX -= 5;
+        c.dragonY -= 1.2;
+      }
+      // 280–340: гномик в шоке
+      else if (c.t < 340) {
+        c.caption = 'Гномик отправляется на поиски...';
+        c.dragonX -= 6;
+        c.dragonY -= 1.5;
+      } else {
+        finishIntro();
+        return;
+      }
+    } else if (c.kind === 'outro') {
+      if (c.t < 55) {
+        c.caption = 'Победа! Принцесса свободна!';
+        c.gnomeX += 2.4;
+        c.princessX -= 1.0;
+      } else if (c.t < 160) {
+        // Жёсткий поцелуй — гномик наваливается
+        c.hardKiss = true;
+        c.caption = 'Гномик жёстко целует принцессу!!!';
+        c.gnomeX = 355 + Math.sin(c.t * 0.45) * 3;
+        c.princessX = 395 + Math.sin(c.t * 0.45 + 1) * 2;
+        if (c.t % 5 === 0) {
+          c.hearts.push({ x: 375 + rand(-25, 25), y: 230, life: 45, vx: rand(-0.8, 0.8) });
+        }
+        if (c.t > 100 && c.t % 12 === 0) {
+          const words = ['Ммпф!!!', 'Отстань!!', 'Ты чё!!!', '#@%&!', 'Фу!!!'];
+          c.swears.push({
+            x: c.princessX + rand(-10, 30),
+            y: 220,
+            text: words[randInt(0, words.length - 1)],
+            life: 40
+          });
+        }
+      } else if (c.t < 200) {
+        c.hardKiss = false;
+        c.princessAngry = true;
+        c.hearts = [];
+        c.caption = 'Принцесса в бешенстве матерится!!!';
+        if (c.t % 10 === 0) {
+          const words = ['Бл@#%!!!', 'Идиот!!!', '#$%&!!!', 'Отвали!!!', 'Козёл!!!', 'Аааа!!!'];
+          c.swears.push({
+            x: c.princessX + rand(-20, 40),
+            y: 210 + rand(-10, 10),
+            text: words[randInt(0, words.length - 1)],
+            life: 50
+          });
+        }
+      } else if (c.t < 340) {
+        c.caption = 'Убегает с детьми, матерясь!!! 😤👶👶';
+        c.princessAngry = true;
+        c.princessRun = true;
+        c.princessX += 6.5;
+        if (c.t % 14 === 0) {
+          const words = ['Не подходит!!!', 'Дети, бежим!', '#@&%!!!', 'Вон отсюда!!!'];
+          c.swears.push({
+            x: c.princessX,
+            y: 200,
+            text: words[randInt(0, words.length - 1)],
+            life: 45
+          });
+        }
+        for (let kid of c.kids) {
+          const target = c.princessX - kid.lag;
+          kid.x += (target - kid.x) * 0.15;
+        }
+      } else if (c.t < 400) {
+        c.caption = 'Гномик остался один... дети тоже сбежали';
+        c.princessX += 8;
+        for (let kid of c.kids) kid.x += 8;
+      } else {
+        finishOutro();
+        return;
+      }
+    }
+
+    for (let i = c.hearts.length - 1; i >= 0; i--) {
+      const h = c.hearts[i];
+      h.y -= 1.5;
+      h.x += h.vx;
+      h.life--;
+      if (h.life <= 0) c.hearts.splice(i, 1);
+    }
+    if (c.swears) {
+      for (let i = c.swears.length - 1; i >= 0; i--) {
+        const s = c.swears[i];
+        s.y -= 1.2;
+        s.life--;
+        if (s.life <= 0) c.swears.splice(i, 1);
+      }
+    }
+  }
+
+  function drawCutscene() {
+    if (!cutscene) return;
+    const c = cutscene;
+    drawCutsceneBackdrop();
+
+    const groundY = 290;
+
+    if (c.kind === 'intro') {
+      const kissing = c.t >= 70 && c.t < 150;
+      const shocked = c.t >= 200;
+
+      if (!c.princessHeld) {
+        drawCutscenePrincess(ctx, c.princessX, groundY, -1, { kiss: kissing });
+      }
+      drawCutsceneGnome(ctx, c.gnomeX, groundY, 1, { kiss: kissing, shocked: shocked });
+
+      if (c.t >= 150) {
+        drawCutsceneDragon(ctx, c.dragonX, c.dragonY, -1);
+        if (c.princessHeld) {
+          drawCutscenePrincess(ctx, c.dragonX - 10, c.dragonY + 25, -1, {});
+        }
+      }
+    } else {
+      const kissing = c.t >= 55 && c.t < 160 && !c.princessAngry;
+      const hard = !!c.hardKiss;
+      const shakeX = hard ? Math.sin(c.t * 0.8) * 2 : 0;
+      drawCutsceneGnome(ctx, c.gnomeX + shakeX, groundY, 1, {
+        kiss: kissing,
+        hardKiss: hard,
+        sad: c.t >= 200
+      });
+      if (c.princessX < W + 80) {
+        const bob = c.princessRun ? Math.sin(c.t * 0.55) * 5 : 0;
+        drawCutscenePrincess(ctx, c.princessX - shakeX, groundY + bob, c.princessRun ? 1 : -1, {
+          kiss: kissing,
+          hardKiss: hard,
+          angry: c.princessAngry
+        });
+      }
+      // дети бегут за принцессой
+      if (c.kids && (c.princessRun || c.t >= 200)) {
+        for (let kid of c.kids) {
+          if (kid.x < W + 40) {
+            const kb = Math.sin(c.t * 0.6 + kid.lag) * 3;
+            drawCutsceneChild(ctx, kid.x, groundY + 8 + kb, 1, kid.hue);
+          }
+        }
+      } else if (c.kids && c.t < 200) {
+        // дети стоят рядом и смотрят в ужасе
+        for (let i = 0; i < c.kids.length; i++) {
+          const kid = c.kids[i];
+          kid.x = 520 + i * 36;
+          drawCutsceneChild(ctx, kid.x, groundY + 8, -1, kid.hue);
+        }
+      }
+    }
+
+    for (let h of c.hearts) {
+      ctx.globalAlpha = clamp(h.life / 40, 0, 1);
+      ctx.font = '22px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('💕', h.x, h.y);
+      ctx.globalAlpha = 1;
+    }
+    if (c.swears) {
+      for (let s of c.swears) {
+        ctx.globalAlpha = clamp(s.life / 35, 0, 1);
+        drawSwearBubble(ctx, s.x, s.y, s.text);
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // титры
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(0, H - 70, W, 70);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 24px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(c.caption, W / 2, H - 32);
+    if (c.t > 25) {
+      ctx.font = '14px Segoe UI, Arial';
+      ctx.fillStyle = '#b5c7e8';
+      ctx.fillText('Пробел — пропустить', W / 2, H - 10);
+    }
+  }
+
+  function startBossFight() {
+    dragon = new Dragon(W - 150, H - 40 - 60);
+    fireballs = [];
+    playerBullets = [];
+    hasGun = false;
+    gunFireCooldown = 0;
+    gunPickup = new GunPickup(120, H - 40 - 50);
+    gameState = STATE.BOSS;
+    levelSpan.textContent = 'Босс';
+    messageDiv.textContent = 'Дракон! Собери автомат и уворачивайся!';
+    document.getElementById('controlsHint').innerHTML =
+      'Подбери <b>автомат</b> — стреляет сам &nbsp;|&nbsp; уворачивайся от рывков и огня';
+    if (player) {
+      player = spawnMarioPlayer({ hasGun: false });
+    }
+  }
+
+  function updateUI() {
+    coinSpan.textContent = coins;
+    livesSpan.textContent = lives;
+  }
+
+  function loseLife(msg) {
+    lives--;
+    updateUI();
+    if (lives <= 0) {
+      gameState = STATE.GAMEOVER;
+      messageDiv.textContent = '💀 Игра окончена';
+      showRestartOverlay('💀 КОНЕЦ', false);
+      return true;
+    }
+    if (msg) {
+      messageDiv.textContent = msg;
+      setTimeout(() => { if (messageDiv.textContent === msg) messageDiv.textContent = ''; }, 1000);
+    }
+    return false;
+  }
+
+  function update() {
+    frame++;
+
+    if (gameState === STATE.INTRO || gameState === STATE.OUTRO) {
+      updateCutscene();
+      return;
+    }
+
+    if (gameState === STATE.MAIN) {
+      if (!player.alive) {
+        if (loseLife('Воскрешение... прогресс сохранён')) return;
+        // Спавн на том же прогрессе (монеты/враги как были)
+        player = spawnMarioPlayer();
+        return;
+      }
+
+      player.update();
+      for (let e of enemies) e.update();
+
+      for (let e of enemies) {
+        if (!e.alive) continue;
+        if (rectCollide(player, e)) {
+          if (player.vy > 0 && player.y + player.h < e.y + e.h / 2) {
+            e.alive = false;
+            player.vy = -6;
+          } else {
+            player.alive = false;
+            return;
+          }
+        }
+      }
+
+      for (let coin of coinObjects) {
+        if (coin.collected) continue;
+        coin.update();
+        const dx = player.x + player.w / 2 - coin.x;
+        const dy = player.y + player.h / 2 - coin.y;
+        if (Math.sqrt(dx * dx + dy * dy) < coin.r + 20) {
+          if (coin.isGreen) {
+            if (!greenCoinCollected) {
+              greenCoinCollected = true;
+              coin.collected = true;
+              gameState = STATE.BOMBER;
+              levelSpan.textContent = 'Бомбермен';
+              messageDiv.textContent = 'Бомбермен: взрывай блоки, дойди до выхода!';
+              document.getElementById('controlsHint').innerHTML =
+                '<kbd>←↑→↓</kbd> – ход &nbsp;|&nbsp; <kbd>Пробел</kbd> – бомба (∞)';
+              generateBomberLevel();
+              return;
+            }
+          } else {
+            coin.collected = true;
+            coins++;
+            updateUI();
+          }
+        }
+      }
+
+      const allCollected = coinObjects.every(c => c.collected || c.isGreen);
+      if (allCollected && !dragon) {
+        startBossFight();
+      }
+
+    } else if (gameState === STATE.BOMBER) {
+      updateBomber();
+    } else if (gameState === STATE.BOSS) {
+      updateBoss();
+    }
+  }
+
+  function respawnBomberPlayer() {
+    bomberPlayer.x = BOMBER_CELL * 2;
+    bomberPlayer.y = BOMBER_CELL * 2;
+    bomberPlayer.alive = true;
+    bomberPlayer.vx = 0;
+    bomberPlayer.vy = 0;
+  }
+
+  function updateBomber() {
+    if (!bomberPlayer.alive) {
+      if (loseLife('Воскрешение в бомбермене...')) return;
+      // Остаёмся в бомбермене с тем же прогрессом (блоки/монстры)
+      respawnBomberPlayer();
+      messageDiv.textContent = 'Снова в бомбермене — прогресс сохранён';
+      setTimeout(() => {
+        if (messageDiv.textContent.includes('Снова в бомбермене')) messageDiv.textContent = '';
+      }, 1200);
+      return;
+    }
+
+    const p = bomberPlayer;
+    let dx = 0, dy = 0;
+    if (keys.ArrowLeft) dx = -p.speed;
+    if (keys.ArrowRight) dx = p.speed;
+    if (keys.ArrowUp) dy = -p.speed;
+    if (keys.ArrowDown) dy = p.speed;
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+    // Бесконечные бомбы: Пробел
+    if (keys.Space && !bomberBombKeyWasDown) placeBomberBomb();
+    bomberBombKeyWasDown = keys.Space;
+
+    p.x += dx;
+    for (let wall of bomberWalls) {
+      if (!wall.solid) continue;
+      if (rectCollide(p, wall)) {
+        if (dx > 0) p.x = wall.x - p.w;
+        else if (dx < 0) p.x = wall.x + wall.w;
+      }
+    }
+    p.y += dy;
+    for (let wall of bomberWalls) {
+      if (!wall.solid) continue;
+      if (rectCollide(p, wall)) {
+        if (dy > 0) p.y = wall.y - p.h;
+        else if (dy < 0) p.y = wall.y + wall.h;
+      }
+    }
+
+    p.x = clamp(p.x, 0, W - p.w);
+    p.y = clamp(p.y, 0, H - p.h);
+
+    // Бомбы
+    for (let i = bomberBombs.length - 1; i >= 0; i--) {
+      const bomb = bomberBombs[i];
+      bomb.timer--;
+      if (bomb.timer <= 0) {
+        explodeBomberBomb(bomb);
+        bomberBombs.splice(i, 1);
+      }
+    }
+
+    // Взрывы
+    for (let i = bomberExplosions.length - 1; i >= 0; i--) {
+      bomberExplosions[i].timer--;
+      if (bomberExplosions[i].timer <= 0) bomberExplosions.splice(i, 1);
+    }
+
+    // Монстры: вверх/вниз/влево/вправо
+    for (let e of bomberEnemies) {
+      if (!e.alive) continue;
+      e.turnTimer--;
+      if (e.turnTimer <= 0) {
+        pickBomberEnemyDir(e);
+        e.turnTimer = randInt(50, 120);
+      }
+
+      e.x += e.vx;
+      let hit = false;
+      for (let wall of bomberWalls) {
+        if (!wall.solid) continue;
+        if (rectCollide(e, wall)) { hit = true; break; }
+      }
+      if (hit || e.x < BOMBER_CELL || e.x + e.w > W - BOMBER_CELL) {
+        e.x -= e.vx;
+        pickBomberEnemyDir(e);
+        e.turnTimer = randInt(40, 90);
+      }
+
+      e.y += e.vy;
+      hit = false;
+      for (let wall of bomberWalls) {
+        if (!wall.solid) continue;
+        if (rectCollide(e, wall)) { hit = true; break; }
+      }
+      if (hit || e.y < BOMBER_CELL || e.y + e.h > H - BOMBER_CELL) {
+        e.y -= e.vy;
+        pickBomberEnemyDir(e);
+        e.turnTimer = randInt(40, 90);
+      }
+
+      if (rectCollide(p, e)) {
+        p.alive = false;
+        messageDiv.textContent = 'Погиб в бомбермене!';
+        return;
+      }
+    }
+
+    // Выход доступен, если над ним нет мягкого блока
+    const exitCovered = bomberWalls.some(w =>
+      w.breakable && w.x === bomberExit.x && w.y === bomberExit.y
+    );
+    if (bomberExit && !exitCovered && rectCollide(p, bomberExit)) {
+      bomberComplete = true;
+      gameState = STATE.MAIN;
+      levelSpan.textContent = 'Марио';
+      messageDiv.textContent = 'Бомбермен пройден! Возврат...';
+      document.getElementById('controlsHint').innerHTML =
+        '<kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок';
+      const allCollected = coinObjects.every(c => c.collected || c.isGreen);
+      if (allCollected && !dragon) {
+        startBossFight();
+      }
+      setTimeout(() => {
+        if (messageDiv.textContent === 'Бомбермен пройден! Возврат...') messageDiv.textContent = '';
+      }, 1000);
+    }
+  }
+
+  function respawnBossPlayer() {
+    const keepGun = hasGun;
+    player = spawnMarioPlayer({ hasGun: keepGun });
+    if (!keepGun && (!gunPickup || gunPickup.collected)) {
+      gunPickup = new GunPickup(120, H - 40 - 50);
+    }
+  }
+
+  function updateBoss() {
+    if (!dragon.alive) {
+      startOutroCutscene();
+      return;
+    }
+
+    player.update();
+    dragon.update(player.x, player.y);
+
+    // Подбор автомата
+    if (gunPickup && !gunPickup.collected) {
+      gunPickup.update();
+      if (rectCollide(player, { x: gunPickup.x, y: gunPickup.y, w: gunPickup.w, h: gunPickup.h + 10 })) {
+        gunPickup.collected = true;
+        hasGun = true;
+        player.hasGun = true;
+        messageDiv.textContent = 'Автомат с автонаводкой! Стреляет сам!';
+        setTimeout(() => {
+          if (messageDiv.textContent.includes('Автомат')) messageDiv.textContent = '';
+        }, 1800);
+      }
+    }
+
+    // Автонаводка: стрельба по боссу
+    if (hasGun && player.alive && dragon.alive) {
+      gunFireCooldown--;
+      if (gunFireCooldown <= 0) {
+        gunFireCooldown = 7;
+        const sx = player.x + player.w / 2 + player.facing * 18;
+        const sy = player.y + player.h / 2;
+        const tx = dragon.x + dragon.w / 2;
+        const ty = dragon.y + dragon.h / 2;
+        const ang = Math.atan2(ty - sy, tx - sx);
+        const spd = 9;
+        playerBullets.push(new PlayerBullet(sx, sy, Math.cos(ang) * spd, Math.sin(ang) * spd));
+        player.facing = tx >= sx ? 1 : -1;
+      }
+    }
+
+    for (let i = playerBullets.length - 1; i >= 0; i--) {
+      const b = playerBullets[i];
+      b.update();
+      if (!b.alive) { playerBullets.splice(i, 1); continue; }
+      if (dragon.alive &&
+          b.x > dragon.x && b.x < dragon.x + dragon.w &&
+          b.y > dragon.y && b.y < dragon.y + dragon.h) {
+        dragon.takeHit(1);
+        playerBullets.splice(i, 1);
+      }
+    }
+
+    for (let i = fireballs.length - 1; i >= 0; i--) {
+      const fb = fireballs[i];
+      fb.update();
+      if (!fb.alive) { fireballs.splice(i, 1); continue; }
+      if (player.alive) {
+        const dx = player.x + player.w / 2 - fb.x;
+        const dy = player.y + player.h / 2 - fb.y;
+        if (Math.sqrt(dx * dx + dy * dy) < fb.r + 14) {
+          player.alive = false;
+          fireballs.splice(i, 1);
+          if (loseLife('Воскрешение... Уворачивайся!')) return;
+          respawnBossPlayer();
+          continue;
+        }
+      }
+    }
+
+    if (player.alive && dragon.alive) {
+      const overlapX = player.x + player.w > dragon.x && player.x < dragon.x + dragon.w;
+      const playerBottom = player.y + player.h;
+      const playerCenterY = player.y + player.h / 2;
+      const stomping =
+        player.vy > 0 &&
+        overlapX &&
+        playerBottom >= dragon.y &&
+        playerBottom <= dragon.y + dragon.h * 0.55 &&
+        playerCenterY < dragon.y + dragon.h * 0.4;
+
+      if (stomping && dragon.hurtTimer <= 0) {
+        dragon.takeHit(3);
+        player.y = dragon.y - player.h;
+        player.vy = -11;
+        player.onGround = false;
+        messageDiv.textContent = 'Попал прыжком! HP: ' + dragon.hp;
+        setTimeout(() => {
+          if (messageDiv.textContent.startsWith('Попал')) messageDiv.textContent = '';
+        }, 500);
+      } else if (overlapX && rectCollide(player, dragon) && !stomping && dragon.hurtTimer <= 0) {
+        player.alive = false;
+        if (loseLife('Воскрешение... Не стой рядом с боссом!')) return;
+        respawnBossPlayer();
+      }
+    }
+
+    if (player.y > H + 50) {
+      player.alive = false;
+      if (loseLife('Воскрешение...')) return;
+      respawnBossPlayer();
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    if (gameState === STATE.INTRO || gameState === STATE.OUTRO) {
+      drawCutscene();
+      return;
+    }
+
+    if (gameState === STATE.MAIN || gameState === STATE.BOSS) {
+      drawMain();
+      if (gameState === STATE.BOSS) {
+        if (gunPickup && !gunPickup.collected) gunPickup.draw(ctx);
+        for (let b of playerBullets) b.draw(ctx);
+        if (dragon) dragon.draw(ctx);
+        for (let fb of fireballs) fb.draw(ctx);
+      }
+    } else if (gameState === STATE.BOMBER) {
+      drawBomber();
+    } else if (gameState === STATE.WIN) {
+      drawMain();
+    } else if (gameState === STATE.GAMEOVER) {
+      drawMain();
+    }
+  }
+
+  function drawMain() {
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#6eb5d6');
+    grad.addColorStop(1, '#b3d9e8');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    for (let i = 0; i < 5; i++) {
+      const cx = (i * 200 + frame * 0.02) % (W + 100) - 50;
+      ctx.beginPath();
+      ctx.arc(cx, 40 + i * 15, 40, 0, Math.PI * 2);
+      ctx.arc(cx + 50, 30 + i * 15, 30, 0, Math.PI * 2);
+      ctx.arc(cx - 30, 50 + i * 15, 30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let p of platforms) p.draw(ctx);
+    for (let coin of coinObjects) coin.draw(ctx);
+    for (let e of enemies) e.draw(ctx);
+    if (player) player.draw(ctx);
+
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(10, 10, gameState === STATE.BOSS ? 260 : 180, 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Arial';
+    ctx.textAlign = 'left';
+    if (gameState === STATE.BOSS) {
+      ctx.fillText(hasGun ? '🔫 Автомат: автонаводка' : '⚠ Подбери автомат слева!', 20, 32);
+    } else {
+      ctx.fillText('Золото: ' + coins + ' / ' + totalCoins, 20, 32);
+    }
+  }
+
+  function drawBomber() {
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillRect(0, 0, W, H);
+
+    // Выход под блоками
+    if (bomberExit) {
+      const covered = bomberWalls.some(w =>
+        w.breakable && w.x === bomberExit.x && w.y === bomberExit.y
+      );
+      if (!covered) {
+        ctx.fillStyle = '#f1c40f';
+        ctx.shadowColor = '#f1c40f';
+        ctx.shadowBlur = 20;
+        ctx.fillRect(bomberExit.x, bomberExit.y, bomberExit.w, bomberExit.h);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🚪', bomberExit.x + bomberExit.w / 2, bomberExit.y + bomberExit.h / 2);
+      }
+    }
+
+    for (let wall of bomberWalls) {
+      if (!wall.solid) continue;
+      if (wall.breakable) {
+        ctx.fillStyle = '#c4a574';
+        ctx.fillRect(wall.x + 2, wall.y + 2, wall.w - 4, wall.h - 4);
+        ctx.strokeStyle = '#8b6914';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(wall.x + 2, wall.y + 2, wall.w - 4, wall.h - 4);
+        ctx.beginPath();
+        ctx.moveTo(wall.x + 8, wall.y + wall.h / 2);
+        ctx.lineTo(wall.x + wall.w - 8, wall.y + wall.h / 2);
+        ctx.moveTo(wall.x + wall.w / 2, wall.y + 8);
+        ctx.lineTo(wall.x + wall.w / 2, wall.y + wall.h - 8);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#4a5c6a';
+        ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+        ctx.strokeStyle = '#2c3e50';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
+      }
+    }
+
+    for (let bomb of bomberBombs) {
+      const pulse = 1 + Math.sin(frame * 0.3) * 0.08;
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(bomb.x + bomb.w / 2, bomb.y + bomb.h / 2, 12 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bomb.x + bomb.w / 2 + 8, bomb.y + bomb.h / 2 - 10);
+      ctx.lineTo(bomb.x + bomb.w / 2 + 14, bomb.y + bomb.h / 2 - 18);
+      ctx.stroke();
+      ctx.fillStyle = '#f1c40f';
+      ctx.beginPath();
+      ctx.arc(bomb.x + bomb.w / 2 + 14, bomb.y + bomb.h / 2 - 18, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let ex of bomberExplosions) {
+      ctx.fillStyle = 'rgba(255, 140, 0, 0.85)';
+      ctx.fillRect(ex.x + 2, ex.y + 2, ex.w - 4, ex.h - 4);
+      ctx.fillStyle = 'rgba(255, 220, 50, 0.9)';
+      ctx.fillRect(ex.x + 10, ex.y + 10, ex.w - 20, ex.h - 20);
+    }
+
+    for (let e of bomberEnemies) {
+      if (!e.alive) continue;
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath();
+      ctx.arc(e.x + e.w / 2, e.y + e.h / 2, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#c0392b';
+      ctx.beginPath();
+      ctx.arc(e.x + e.w / 2 - 4, e.y + e.h / 2 - 2, 4, 0, Math.PI * 2);
+      ctx.arc(e.x + e.w / 2 + 4, e.y + e.h / 2 - 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(e.x + e.w / 2 - 5, e.y + e.h / 2 - 4, 2, 0, Math.PI * 2);
+      ctx.arc(e.x + e.w / 2 + 3, e.y + e.h / 2 - 4, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (bomberPlayer && bomberPlayer.alive) {
+      ctx.fillStyle = '#2ecc71';
+      ctx.shadowColor = '#2ecc71';
+      ctx.shadowBlur = 15;
+      ctx.fillRect(bomberPlayer.x, bomberPlayer.y, bomberPlayer.w, bomberPlayer.h);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('😊', bomberPlayer.x + bomberPlayer.w / 2, bomberPlayer.y + bomberPlayer.h / 2 + 6);
+    }
+
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(10, 10, 420, 30);
+    ctx.fillStyle = '#fff';
+    ctx.font = '15px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('Пробел — бомба ∞  |  взорви блоки 🧱  → выход 🚪', 20, 32);
+  }
+
+  function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault();
+      keys.Space = true;
+    } else if (e.key.startsWith('Arrow')) {
+      e.preventDefault();
+      keys[e.key] = true;
+    }
+  });
+  document.addEventListener('keyup', e => {
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault();
+      keys.Space = false;
+    } else if (e.key.startsWith('Arrow')) {
+      e.preventDefault();
+      keys[e.key] = false;
+    }
+  });
+
+  function restartGame() {
+    initGame();
+  }
+
+  document.getElementById('restartBtn').addEventListener('click', restartGame);
+  document.getElementById('restartOverlayBtn').addEventListener('click', restartGame);
+
+  initGame();
+  gameLoop();
+
+  window.addEventListener('blur', () => {
+    for (let k in keys) keys[k] = false;
+  });
+</script>
+</body>
+</html>
