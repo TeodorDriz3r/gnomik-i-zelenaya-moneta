@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Гномик и зеленая монетка</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
@@ -266,7 +269,7 @@
     <div id="menuOverlay" class="visible">
       <canvas id="menuLogo" width="140" height="140"></canvas>
       <div id="menuTitle">Гномик и зеленая монетка</div>
-      <div id="menuSubtitle">Платформер • Бомбермен • Босс</div>
+      <div id="menuSubtitle">Мышь: наведение и клик по кнопкам · перетаскивание в инвентаре</div>
       <button id="playBtn">▶ Играть</button>
       <button id="skipStoryBtn" type="button">Играть без сюжета</button>
     </div>
@@ -3862,8 +3865,6 @@
     ctx.font = 'bold 18px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(b ? b.name : 'Дом', W / 2, 78);
-    // дверь
-    houseUiButtons = [];
   }
 
   function pointInBox(mx, my, b) {
@@ -3959,24 +3960,24 @@
     }
 
     const sp = b.special;
-    houseBtn(90, 100, 150, 44, 'Инвентарь', 'inventory', '#1565c0', '#90caf9');
-    houseBtn(560, 100, 150, 44, 'Выйти', 'exit', '#5d4037', '#bcaaa4');
+    houseBtn(70, 95, 170, 50, 'Инвентарь', 'inventory', '#1565c0', '#90caf9');
+    houseBtn(560, 95, 170, 50, 'Выйти', 'exit', '#5d4037', '#bcaaa4');
 
-    const midY = 160;
+    const midY = 165;
     if (sp === 'guild') {
-      houseBtn(140, midY, 240, 52, 'Сдача добычи', 'shop_guild', '#00695c', '#80cbc4');
-      houseBtn(420, midY, 240, 52, 'Задания гильдии', 'guild_quests', '#ef6c00', '#ffe082');
+      houseBtn(120, midY, 260, 58, 'Сдача добычи', 'shop_guild', '#00695c', '#80cbc4');
+      houseBtn(420, midY, 260, 58, 'Задания гильдии', 'guild_quests', '#ef6c00', '#ffe082');
     } else if (sp === 'weapons') {
-      houseBtn(220, midY, 360, 52, 'Оружейная — открыть', 'shop_weapons', '#2e7d32', '#a5d6a7');
+      houseBtn(200, midY, 400, 58, 'Оружейная — открыть', 'shop_weapons', '#2e7d32', '#a5d6a7');
     } else if (sp === 'potions') {
-      houseBtn(220, midY, 360, 52, 'Зелья — открыть', 'shop_potions', '#6a1b9a', '#ce93d8');
+      houseBtn(200, midY, 400, 58, 'Зелья — открыть', 'shop_potions', '#6a1b9a', '#ce93d8');
     } else if (sp === 'flowers') {
-      houseBtn(220, midY, 360, 52, 'Цветы — купить', 'shop_flowers', '#ad1457', '#f48fb1');
+      houseBtn(200, midY, 400, 58, 'Цветы — купить', 'shop_flowers', '#ad1457', '#f48fb1');
     } else if (sp === 'tavern') {
-      houseBtn(220, midY, 360, 52, 'Таверна — ночлег', 'shop_tavern', '#4e342e', '#d7ccc8');
+      houseBtn(200, midY, 400, 58, 'Таверна — ночлег', 'shop_tavern', '#4e342e', '#d7ccc8');
     } else if (hasStealSkill()) {
       const stolen = !!(insideHouse.stolen || houseStolenIds[b.id]);
-      houseBtn(220, midY, 360, 52, stolen ? 'Уже обокраден' : 'Кража', 'steal',
+      houseBtn(200, midY, 400, 58, stolen ? 'Уже обокраден' : 'Кража', 'steal',
         stolen ? '#455a64' : '#6a1b9a', '#ce93d8');
     }
 
