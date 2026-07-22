@@ -3899,6 +3899,11 @@
         }
       }
     }
+    if (!insideHouse && !rpgUi && stealBtnBox && pointInBox(mx, my, stealBtnBox)) {
+      uiHover = { kind: 'lockpick', index: 0 };
+      canvas.style.cursor = 'pointer';
+      return;
+    }
     if (rpgUi && rpgUi !== 'gear' && menuHitBoxes) {
       for (let i = 0; i < menuHitBoxes.length; i++) {
         if (pointInBox(mx, my, menuHitBoxes[i])) {
@@ -3974,10 +3979,6 @@
       houseBtn(200, midY, 400, 58, 'Цветы — купить', 'shop_flowers', '#ad1457', '#f48fb1');
     } else if (sp === 'tavern') {
       houseBtn(200, midY, 400, 58, 'Таверна — ночлег', 'shop_tavern', '#4e342e', '#d7ccc8');
-    } else if (hasStealSkill()) {
-      const stolen = !!(insideHouse.stolen || houseStolenIds[b.id]);
-      houseBtn(200, midY, 400, 58, stolen ? 'Уже обокраден' : 'Кража', 'steal',
-        stolen ? '#455a64' : '#6a1b9a', '#ce93d8');
     }
 
     // дверь
@@ -4004,7 +4005,6 @@
       const btn = houseUiButtons[i];
       if (mx < btn.x || my < btn.y || mx > btn.x + btn.w || my > btn.y + btn.h) continue;
       if (btn.action === 'exit') { exitHouseInterior(); return true; }
-      if (btn.action === 'steal') { tryStealHouse(); return true; }
       if (btn.action === 'shop_guild') { openShop('guild'); return true; }
       if (btn.action === 'shop_weapons') { openShop('weapons'); return true; }
       if (btn.action === 'shop_potions') { openShop('potions'); return true; }
@@ -4176,15 +4176,20 @@
     }
     if (nearTownBuilding && !messageDiv.textContent.startsWith('Получено') && !rpgUi) {
       let tip = nearTownBuilding.name;
-      if (!nearTownBuilding.special && nearTownBuilding.id) {
-        tip += ' (№' + nearTownBuilding.id + ')';
+      if (isEmptyHouse(nearTownBuilding)) {
+        const stolen = !!houseStolenIds[nearTownBuilding.id];
+        if (stolen) tip += '  ·  уже взломан';
+        else if (hasStealSkill()) tip += '  ·  [E] / кнопка — Взлом';
+        else tip += '  ·  закрыт · нужен навык «Взлом»';
+      } else {
+        tip += '  ·  [E] войти';
       }
-      tip += '  ·  [E] войти';
       messageDiv.textContent = tip;
     } else if (!nearTownBuilding && !rpgUi && !messageDiv.textContent.startsWith('Получено')) {
       const t = messageDiv.textContent;
-      if (t.indexOf('№') !== -1 || t.indexOf('[E] войти') !== -1 ||
-          t === 'Гильдия' || t === 'Цветы' || t === 'Оружейная' || t === 'Зелья' || t === 'Таверна') {
+      if (t.indexOf('[E]') !== -1 || t.indexOf('закрыт') !== -1 || t.indexOf('взломан') !== -1 ||
+          t === 'Гильдия' || t === 'Цветы' || t === 'Оружейная' || t === 'Зелья' || t === 'Таверна' ||
+          t.indexOf('Дом ') === 0) {
         messageDiv.textContent = '';
       }
     }
@@ -4201,8 +4206,12 @@
     if (!sk) return;
     aimTownAt(mousePos.x, mousePos.y);
     const kind = sk.kind || sk.id;
-    if (kind === 'steal') {
-      messageDiv.textContent = 'Кража: зайди в обычный дом и нажми «Кража»';
+    if (kind === 'steal' || kind === 'lockpick') {
+      if (nearTownBuilding && isEmptyHouse(nearTownBuilding)) {
+        tryLockpickHouse(nearTownBuilding);
+      } else {
+        messageDiv.textContent = 'Взлом: подойди к пустому дому и нажми E / кнопку';
+      }
       return;
     }
     // мана только у мага
@@ -5253,7 +5262,32 @@
     }
     drawHpBar();
     drawDayNightOverlay();
+    drawStreetLockpickButton();
     drawRpgPanels();
+  }
+
+  function drawStreetLockpickButton() {
+    stealBtnBox = null;
+    if (insideHouse || rpgUi || !nearTownBuilding || !isEmptyHouse(nearTownBuilding)) return;
+    if (!hasStealSkill()) return;
+    const b = nearTownBuilding;
+    const stolen = !!houseStolenIds[b.id];
+    const bw = 160, bh = 40;
+    const bx = Math.max(8, Math.min(W - bw - 8, b.x + b.w / 2 - bw / 2));
+    const by = Math.max(8, b.y - 48);
+    stealBtnBox = { x: bx, y: by, w: bw, h: bh, building: b };
+    const hovered = uiHover && uiHover.kind === 'lockpick';
+    ctx.fillStyle = stolen ? '#455a64' : (hovered ? '#ab47bc' : '#6a1b9a');
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = hovered ? '#fff59d' : '#ce93d8';
+    ctx.lineWidth = hovered ? 3 : 2;
+    ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(stolen ? 'Уже взломан' : 'Взлом', bx + bw / 2, by + bh / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
   }
 
 
@@ -5348,19 +5382,29 @@
 
   function hasStealSkill() {
     if (!townPlayer || !townPlayer.skills) return false;
-    return townPlayer.skills.some(s => s.id === 'steal' || s.kind === 'steal');
+    let found = false;
+    for (let s of townPlayer.skills) {
+      if (s.id === 'steal' || s.id === 'lockpick' || s.kind === 'steal' || s.kind === 'lockpick') {
+        s.id = 'lockpick';
+        s.kind = 'lockpick';
+        s.name = 'Взлом';
+        s.desc = 'Взлом пустых домов с улицы · E или кнопка';
+        found = true;
+      }
+    }
+    return found;
   }
 
   function grantStealSkill() {
     if (!townPlayer || hasStealSkill()) return false;
     townPlayer.skills.push({
-      id: 'steal',
-      name: 'Кража',
+      id: 'lockpick',
+      name: 'Взлом',
       level: 1,
       damage: 0,
-      kind: 'steal',
+      kind: 'lockpick',
       color: '#78909c',
-      desc: 'Взлом обычных домов · кнопка в доме'
+      desc: 'Взлом пустых домов с улицы · E или кнопка'
     });
     return true;
   }
@@ -5521,7 +5565,7 @@
     // заглушка: средний / дорогой лут — цены и состав позже
     if (Math.random() < 0.55) {
       const mid = [
-        makeItem('steal_mid_potion_' + frame, 'Среднее зелье (кража)', 'potion', {
+        makeItem('steal_mid_potion_' + frame, 'Среднее зелье (взлом)', 'potion', {
           heal: 10, itemLevel: 2, desc: 'Средний лут · из дома'
         }),
         makeItem('steal_mid_silver_' + frame, 'Кошелёк серебра', 'quest', {
@@ -5547,22 +5591,34 @@
     return rich[randInt(0, rich.length - 1)];
   }
 
-  function tryStealHouse() {
-    if (!insideHouse || !townPlayer || !hasStealSkill()) return;
-    const b = insideHouse.building;
-    const id = b.id;
-    if (houseStolenIds[id] || insideHouse.stolen) {
-      messageDiv.textContent = 'Здесь уже всё вынесли';
+  function tryLockpickHouse(b) {
+    if (!townPlayer || rpgUi || insideHouse) return;
+    b = b || nearTownBuilding;
+    if (!b || !isEmptyHouse(b)) {
+      messageDiv.textContent = 'Взлом только для пустых домов';
       return;
     }
-    insideHouse.stolen = true;
+    if (!hasStealSkill()) {
+      messageDiv.textContent = 'Дверь на замке · нужен навык «Взлом»';
+      return;
+    }
+    const id = b.id;
+    if (houseStolenIds[id]) {
+      messageDiv.textContent = 'Этот дом уже взломан';
+      return;
+    }
     houseStolenIds[id] = true;
     const loot = rollStealLoot();
     townPlayer.bag.push(loot);
-    messageDiv.textContent = 'Кража удалась: ' + loot.name;
+    messageDiv.textContent = 'Взлом удался: ' + loot.name;
     setTimeout(() => {
-      if (messageDiv.textContent.indexOf('Кража') === 0) messageDiv.textContent = '';
+      if (messageDiv.textContent.indexOf('Взлом') === 0) messageDiv.textContent = '';
     }, 2000);
+    updateUI();
+  }
+
+  function tryStealHouse() {
+    tryLockpickHouse(insideHouse && insideHouse.building);
   }
 
   function isGuildQuestDungeonUnlocked() {
@@ -5636,8 +5692,8 @@
     }
     let msg = 'Босс повержен! Задание выполнено.';
     if (Math.random() < 0.15) {
-      if (grantStealSkill()) msg += ' Добыт навык «Кража»!';
-      else msg += ' (навык Кража уже есть)';
+      if (grantStealSkill()) msg += ' Добыт навык «Взлом»!';
+      else msg += ' (навык Взлом уже есть)';
     }
     messageDiv.textContent = msg;
   }
@@ -5937,6 +5993,10 @@
     updateUI();
   }
 
+  function isEmptyHouse(b) {
+    return !!(b && !b.special);
+  }
+
   function tryInteractBuilding() {
     if (rpgUi) return;
     // внутри дома — выйти
@@ -5945,7 +6005,11 @@
       return;
     }
     if (!nearTownBuilding) return;
-    // любой домик — сначала комната с кнопками мышью
+    // пустые дома — только взлом снаружи, внутрь нельзя
+    if (isEmptyHouse(nearTownBuilding)) {
+      tryLockpickHouse(nearTownBuilding);
+      return;
+    }
     enterHouseInterior(nearTownBuilding);
   }
 
@@ -7574,6 +7638,13 @@
 
     // 1) кнопки внутри дома (гильдия / магазины) — в приоритете
     if (insideHouse && !rpgUi && handleHouseUiClick(p.x, p.y)) {
+      ev.preventDefault();
+      return;
+    }
+
+    // 1b) взлом пустого дома с улицы
+    if (!insideHouse && !rpgUi && stealBtnBox && hitBox(p.x, p.y, stealBtnBox)) {
+      tryLockpickHouse(stealBtnBox.building || nearTownBuilding);
       ev.preventDefault();
       return;
     }
