@@ -3960,7 +3960,6 @@
     }
 
     const sp = b.special;
-    houseBtn(70, 95, 170, 50, 'Инвентарь', 'inventory', '#1565c0', '#90caf9');
     houseBtn(560, 95, 170, 50, 'Выйти', 'exit', '#5d4037', '#bcaaa4');
 
     const midY = 165;
@@ -4005,7 +4004,6 @@
       const btn = houseUiButtons[i];
       if (mx < btn.x || my < btn.y || mx > btn.x + btn.w || my > btn.y + btn.h) continue;
       if (btn.action === 'exit') { exitHouseInterior(); return true; }
-      if (btn.action === 'inventory') { toggleRpgUi('gear'); return true; }
       if (btn.action === 'steal') { tryStealHouse(); return true; }
       if (btn.action === 'shop_guild') { openShop('guild'); return true; }
       if (btn.action === 'shop_weapons') { openShop('weapons'); return true; }
