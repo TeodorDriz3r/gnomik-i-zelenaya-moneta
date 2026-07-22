@@ -330,6 +330,116 @@
   const ctx = canvas.getContext('2d');
   const W = 800, H = 450;
 
+  // Пиксельные курсоры (16×16, увеличены в 2 раза)
+  function buildPixelCursor(pixels, hx, hy, scale) {
+    scale = scale || 2;
+    const n = 16;
+    const c = document.createElement('canvas');
+    c.width = n * scale;
+    c.height = n * scale;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const ch = pixels[y][x];
+        if (ch === '.' || ch === ' ') continue;
+        if (ch === '#') g.fillStyle = '#1a1a1a';
+        else if (ch === 'W') g.fillStyle = '#ffffff';
+        else if (ch === 'Y') g.fillStyle = '#ffe082';
+        else if (ch === 'G') g.fillStyle = '#c8e6a0';
+        else continue;
+        g.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+    return 'url(' + c.toDataURL('image/png') + ') ' + (hx * scale) + ' ' + (hy * scale) + ', auto';
+  }
+
+  const PIXEL_CURSORS = {
+    default: buildPixelCursor([
+      'W...............',
+      'WW..............',
+      'W#W.............',
+      'W##W............',
+      'W###W...........',
+      'W####W..........',
+      'W#####W.........',
+      'W######W........',
+      'W#######W.......',
+      'W#####WWWW......',
+      'W###W#W.........',
+      'W##W.#W.........',
+      'W#W...#W........',
+      'WW.....#W.......',
+      'W.......#W......',
+      '.........WW.....'
+    ], 0, 0),
+    pointer: buildPixelCursor([
+      '....WW..........',
+      '...W##W.........',
+      '...W##W.........',
+      '...W##W.........',
+      '...W##WWWWW.....',
+      '...W##W###W#W...',
+      'WWW##W###W#W...',
+      'W#######W#W....',
+      'W#W#####W#W....',
+      '.W.W####W#W....',
+      '...W####W#W....',
+      '...W####WW.....',
+      '...W##W##W.....',
+      '...W#W.W#W.....',
+      '...WW...WW.....',
+      '................'
+    ], 5, 0),
+    grab: buildPixelCursor([
+      '......YY........',
+      '.....Y##Y.......',
+      '...YY#Y##Y.YY...',
+      '..Y##Y####Y##Y..',
+      '.Y############Y.',
+      '.Y############Y.',
+      '.Y############Y.',
+      '..Y##########Y..',
+      '..Y##########Y..',
+      '...Y########Y...',
+      '...Y########Y...',
+      '....Y######Y....',
+      '....Y######Y....',
+      '.....Y####Y.....',
+      '.....YYYYYY.....',
+      '................'
+    ], 8, 8),
+    grabbing: buildPixelCursor([
+      '................',
+      '....YYYYYY......',
+      '...Y######Y.....',
+      '..Y########Y....',
+      '.Y##########Y...',
+      '.Y##########Y...',
+      '.Y##########Y...',
+      '..Y########Y....',
+      '..Y########Y....',
+      '...Y######Y.....',
+      '...Y######Y.....',
+      '....Y####Y......',
+      '....Y####Y......',
+      '.....YYYY.......',
+      '................',
+      '................'
+    ], 8, 8)
+  };
+
+  function setGameCursor(kind) {
+    const cur = PIXEL_CURSORS[kind] || PIXEL_CURSORS.default;
+    canvas.style.cursor = cur;
+  }
+  setGameCursor('default');
+  // те же пиксельные курсоры на кнопках меню/оверлеев
+  document.querySelectorAll('button').forEach(btn => {
+    btn.style.cursor = PIXEL_CURSORS.pointer;
+  });
+  document.body.style.cursor = PIXEL_CURSORS.default;
+
   const coinSpan = document.getElementById('coinDisplay');
   const livesSpan = document.getElementById('livesDisplay');
   const levelSpan = document.getElementById('levelDisplay');
@@ -3879,7 +3989,7 @@
         for (let i = 0; i < gearSlotBoxes.length; i++) {
           if (pointInBox(mx, my, gearSlotBoxes[i])) {
             uiHover = { kind: 'slot', index: i };
-            canvas.style.cursor = 'grabbing';
+            setGameCursor('grabbing');
             return;
           }
         }
@@ -3887,21 +3997,21 @@
           uiHover = { kind: 'bagdrop', index: 0 };
         }
       }
-      canvas.style.cursor = 'grabbing';
+      setGameCursor('grabbing');
       return;
     }
     if (insideHouse && !rpgUi && houseUiButtons) {
       for (let i = 0; i < houseUiButtons.length; i++) {
         if (pointInBox(mx, my, houseUiButtons[i])) {
           uiHover = { kind: 'house', index: i };
-          canvas.style.cursor = 'pointer';
+          setGameCursor('pointer');
           return;
         }
       }
     }
     if (!insideHouse && !rpgUi && stealBtnBox && pointInBox(mx, my, stealBtnBox)) {
       uiHover = { kind: 'lockpick', index: 0 };
-      canvas.style.cursor = 'pointer';
+      setGameCursor('pointer');
       return;
     }
     if (rpgUi && rpgUi !== 'gear' && menuHitBoxes) {
@@ -3912,7 +4022,7 @@
             if (rpgUi === 'levelup') levelUpFocus = menuHitBoxes[i].index;
             else if (rpgUi !== 'skills') shopFocus = menuHitBoxes[i].index;
           }
-          canvas.style.cursor = 'pointer';
+          setGameCursor('pointer');
           return;
         }
       }
@@ -3921,19 +4031,19 @@
       for (let i = 0; i < bagItemBoxes.length; i++) {
         if (pointInBox(mx, my, bagItemBoxes[i])) {
           uiHover = { kind: 'bag', index: i };
-          canvas.style.cursor = 'grab';
+          setGameCursor('grab');
           return;
         }
       }
       for (let i = 0; i < gearSlotBoxes.length; i++) {
         if (pointInBox(mx, my, gearSlotBoxes[i])) {
           uiHover = { kind: 'slot', index: i };
-          canvas.style.cursor = townPlayer && townPlayer.slots[gearSlotBoxes[i].key] ? 'grab' : 'pointer';
+          setGameCursor(townPlayer && townPlayer.slots[gearSlotBoxes[i].key] ? 'grab' : 'pointer');
           return;
         }
       }
     }
-    canvas.style.cursor = 'default';
+    setGameCursor('default');
   }
 
   function drawHouseUiButtons() {
@@ -7739,7 +7849,7 @@
   canvas.addEventListener('mouseleave', () => {
     invDrag = null;
     uiHover = null;
-    canvas.style.cursor = 'default';
+    setGameCursor('default');
   });
 
   document.querySelectorAll('.class-card').forEach(btn => {
