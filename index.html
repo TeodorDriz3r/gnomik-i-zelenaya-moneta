@@ -191,6 +191,72 @@
       transform: translateY(4px) scale(0.99);
       box-shadow: 0 3px 0 #2a5518, 0 6px 12px rgba(0,0,0,0.35);
     }
+    #skipStoryBtn {
+      margin-left: 0;
+      margin-top: 4px;
+      font-size: 15px;
+      padding: 10px 28px;
+      border-radius: 60px;
+      background: linear-gradient(180deg, #5c6bc0, #3949ab);
+      border: 2px solid #9fa8da;
+      box-shadow: 0 5px 0 #1a237e, 0 8px 16px rgba(0,0,0,0.35);
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #skipStoryBtn:hover {
+      background: linear-gradient(180deg, #7986cb, #5c6bc0);
+      transform: translateY(-2px) scale(1.02);
+    }
+
+    #classOverlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: rgba(12, 10, 28, 0.82);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 8;
+      padding: 20px;
+    }
+    #classOverlay.visible { display: flex; }
+    #classOverlay .class-title {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 34px;
+      color: #f7d44a;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+    #classOverlay .class-sub {
+      color: #f8bbd0;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    #classCards {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .class-card {
+      width: 190px;
+      margin-left: 0;
+      padding: 16px 14px 18px;
+      border-radius: 18px;
+      border: 3px solid rgba(255,255,255,0.25);
+      background: linear-gradient(180deg, #3a3158, #241e38);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.4);
+      text-align: center;
+      color: #fff;
+    }
+    .class-card:hover { transform: translateY(-3px) scale(1.03); }
+    .class-card .cn { font-size: 22px; font-weight: bold; margin-bottom: 6px; }
+    .class-card .cd { font-size: 13px; color: #c5cae9; line-height: 1.35; }
+    .class-card.mage { border-color: #7e57c2; }
+    .class-card.swordsman { border-color: #ef5350; }
+    .class-card.archer { border-color: #66bb6a; }
   </style>
 </head>
 <body>
@@ -202,21 +268,48 @@
       <div id="menuTitle">Гномик и зеленая монетка</div>
       <div id="menuSubtitle">Платформер • Бомбермен • Босс</div>
       <button id="playBtn">▶ Играть</button>
+      <button id="skipStoryBtn" type="button">Играть без сюжета</button>
     </div>
     <div id="gameOverOverlay">
       <div class="over-title" id="overTitle">💀 КОНЕЦ</div>
       <button id="restartOverlayBtn">🔄 Заново</button>
+    </div>
+
+    <div id="classOverlay">
+      <div class="class-title">Кем стать?</div>
+      <div class="class-sub">Девочка-администратор предлагает выбрать путь искателя</div>
+      <div id="classCards">
+        <button class="class-card mage" data-class="mage" type="button">
+          <div class="cn">Маг</div>
+          <div class="cd">Навык «Шар» 1 ур.<br>Шарик наносит 1 урон</div>
+        </button>
+        <button class="class-card swordsman" data-class="swordsman" type="button">
+          <div class="cn">Мечник</div>
+          <div class="cd">Меч (1 урон)<br>Навык «Рассекание» 1 ур. (1 урон)</div>
+        </button>
+        <button class="class-card archer" data-class="archer" type="button">
+          <div class="cn">Лучник</div>
+          <div class="cd">Лук (1 урон)<br>Навык «Выстрел» 1 ур. (1 урон)</div>
+        </button>
+      </div>
     </div>
     <div id="pauseOverlay">
       <div class="pause-title">⏸ ПАУЗА</div>
       <div class="pause-hint">Нажми <kbd style="background:#2f3850;color:#fff;padding:2px 10px;border-radius:8px;">Esc</kbd> чтобы продолжить</div>
     </div>
   </div>
-  <div class="info">
+  <div class="info" id="hudClassic">
     <span>🪙 <span id="coinDisplay">0</span></span>
     <span>❤️ <span id="livesDisplay">5</span></span>
     <span>🏆 <span id="levelDisplay">Марио</span></span>
     <button id="restartBtn">🔄 Заново</button>
+  </div>
+  <div class="info" id="hudAdventure" style="display:none;">
+    <span title="Медные">🟤 <span id="copperDisplay">0</span></span>
+    <span title="Серебряные">⚪ <span id="silverDisplay">0</span></span>
+    <span title="Золотые">🟡 <span id="goldDisplay">0</span></span>
+    <span>🏆 <span id="advLevelDisplay">Город</span></span>
+    <button id="restartBtnAdv">🔄 Заново</button>
   </div>
   <div class="controls" id="controlsHint">
     <kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок
@@ -240,6 +333,12 @@
   const messageDiv = document.getElementById('message');
   const gameOverOverlay = document.getElementById('gameOverOverlay');
   const overTitle = document.getElementById('overTitle');
+  const hudClassic = document.getElementById('hudClassic');
+  const hudAdventure = document.getElementById('hudAdventure');
+  const copperSpan = document.getElementById('copperDisplay');
+  const silverSpan = document.getElementById('silverDisplay');
+  const goldSpan = document.getElementById('goldDisplay');
+  const advLevelSpan = document.getElementById('advLevelDisplay');
 
   function showRestartOverlay(title, isWin) {
     overTitle.textContent = title;
@@ -275,7 +374,14 @@
     WIN: 4,
     GAMEOVER: 5,
     INTRO: 6,
-    OUTRO: 7
+    OUTRO: 7,
+    CITY_INTRO: 8,
+    CLASS_SELECT: 9,
+    CITY: 10,
+    HUB: 11,
+    SLIMES: 12,
+    DUNGEON: 13,
+    GATHER: 14
   };
 
   let gameState = STATE.MENU;
@@ -391,6 +497,15 @@
       ctx.save();
       ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
       ctx.scale(this.facing, 1);
+
+      const walking = this.onGround && Math.abs(this.vx) > 0.35;
+      const air = !this.onGround;
+      const phase = walking ? frame * 0.42 : 0;
+      const leftSwing = walking ? Math.sin(phase) * 7 : (air ? -2 : 0);
+      const rightSwing = walking ? Math.sin(phase + Math.PI) * 7 : (air ? 2 : 0);
+      const bob = walking ? Math.abs(Math.sin(phase)) * 1.2 : 0;
+      ctx.translate(0, -bob);
+
       ctx.fillStyle = '#d44c4c';
       ctx.beginPath();
       ctx.arc(0, -4, 16, 0, Math.PI, true);
@@ -406,9 +521,15 @@
       ctx.beginPath();
       ctx.arc(4, 2, 3, 0, Math.PI * 2);
       ctx.fill();
+
+      // динамичные ноги — имитация ходьбы
       ctx.fillStyle = '#6b4f3c';
-      ctx.fillRect(-8, 14, 6, 8);
-      ctx.fillRect(2, 14, 6, 8);
+      ctx.fillRect(-8 + leftSwing * 0.25, 12 + Math.max(0, -leftSwing) * 0.15, 6, 8);
+      ctx.fillRect(2 + rightSwing * 0.25, 12 + Math.max(0, -rightSwing) * 0.15, 6, 8);
+      ctx.fillStyle = '#3e2723';
+      ctx.fillRect(-9 + leftSwing * 0.35, 18 + Math.max(0, leftSwing) * 0.12, 8, 4);
+      ctx.fillRect(1 + rightSwing * 0.35, 18 + Math.max(0, rightSwing) * 0.12, 8, 4);
+
       if (this.hasGun) {
         ctx.fillStyle = '#2c3e50';
         ctx.fillRect(8, 2, 22, 6);
@@ -1387,6 +1508,7 @@
     cutscene = null;
     setPaused(false);
     hideRestartOverlay();
+    setAdventureHud(false);
     menuOverlay.classList.add('visible');
     levelSpan.textContent = 'Меню';
     messageDiv.textContent = '';
@@ -1403,15 +1525,34 @@
     lives = 5;
     setPaused(false);
     hideRestartOverlay();
+    setAdventureHud(false);
+    resetDayNight();
     generateMainLevel();
     updateUI();
     startIntroCutscene();
+  }
+
+  function startGameSkipStory() {
+    hideMenu();
+    lives = 5;
+    setPaused(false);
+    hideRestartOverlay();
+    resetTownState();
+    setAdventureHud(true);
+    cutscene = null;
+    for (let k in keys) keys[k] = false;
+    levelSpan.textContent = 'Гильдия';
+    messageDiv.textContent = 'Выбери класс — сразу к приключению';
+    document.getElementById('controlsHint').innerHTML = 'Выбери: маг, мечник или лучник';
+    openClassSelect();
+    updateUI();
   }
 
   function initGame() {
     lives = 5;
     setPaused(false);
     hideRestartOverlay();
+    resetTownState();
     generateMainLevel();
     updateUI();
     showMenu();
@@ -1484,9 +1625,8 @@
   function finishOutro() {
     cutscene = null;
     for (let k in keys) keys[k] = false;
-    gameState = STATE.WIN;
-    messageDiv.textContent = '🎉 ПОБЕДА! Ведь он ее любит...';
-    showRestartOverlay('🏆 ПОБЕДА!', true);
+    messageDiv.textContent = '🎉 Победа... путь продолжается';
+    startCityIntro();
   }
 
   function drawCutsceneGnome(ctx, x, y, facing, opts) {
@@ -2132,9 +2272,9 @@
     c.t++;
 
     // Пропуск по пробелу (после короткой паузы)
-    if (c.t > 20 && keys.Space) {
+    if (c.kind !== 'city' && c.t > 20 && keys.Space) {
       if (c.kind === 'intro') finishIntro();
-      else finishOutro();
+      else if (c.kind === 'outro') finishOutro();
       return;
     }
 
@@ -2451,6 +2591,28 @@
   function updateUI() {
     coinSpan.textContent = coins;
     livesSpan.textContent = lives;
+    if (copperSpan && townPlayer) {
+      normalizeMoney();
+      copperSpan.textContent = townPlayer.copper || 0;
+      silverSpan.textContent = townPlayer.silver || 0;
+      goldSpan.textContent = townPlayer.gold || 0;
+    }
+  }
+
+  function setAdventureHud(on) {
+    if (hudClassic) hudClassic.style.display = on ? 'none' : 'flex';
+    if (hudAdventure) hudAdventure.style.display = on ? 'flex' : 'none';
+    if (on && townPlayer && advLevelSpan) {
+      const def = CLASS_DEFS[townPlayer.classId];
+      advLevelSpan.textContent = (def ? def.title + ' · ' : '') + 'Lv.' + townPlayer.level;
+    }
+    updateUI();
+  }
+
+  function isAdventureState() {
+    return gameState === STATE.CITY || gameState === STATE.CITY_INTRO ||
+      gameState === STATE.CLASS_SELECT || gameState === STATE.HUB ||
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER;
   }
 
   function loseLife(msg) {
@@ -2473,11 +2635,25 @@
     if (paused) return;
     if (gameState === STATE.MENU) return;
     frame++;
+    updateDayNight();
 
     if (gameState === STATE.INTRO || gameState === STATE.OUTRO) {
       updateCutscene();
       return;
     }
+    if (gameState === STATE.CITY_INTRO) {
+      updateCityIntro();
+      return;
+    }
+    if (gameState === STATE.CLASS_SELECT) return;
+    if (gameState === STATE.CITY) {
+      updateCity();
+      return;
+    }
+    if (gameState === STATE.HUB) { updateHub(); return; }
+    if (gameState === STATE.SLIMES) { updateSlimesZone(); return; }
+    if (gameState === STATE.DUNGEON) { updateDungeon(); return; }
+    if (gameState === STATE.GATHER) { updateGather(); return; }
 
     if (gameState === STATE.MAIN) {
       if (!player.alive) {
@@ -2836,6 +3012,23 @@
       drawCutscene();
       return;
     }
+    if (gameState === STATE.CITY_INTRO) {
+      drawCityIntro();
+      return;
+    }
+    if (gameState === STATE.CLASS_SELECT) {
+      drawGuildInterior(null);
+      drawTownGnome(400, 280, 1, null);
+      return;
+    }
+    if (gameState === STATE.CITY) {
+      drawCity();
+      return;
+    }
+    if (gameState === STATE.HUB) { drawHub(); return; }
+    if (gameState === STATE.SLIMES) { drawSlimesZone(); return; }
+    if (gameState === STATE.DUNGEON) { drawDungeon(); return; }
+    if (gameState === STATE.GATHER) { drawGather(); return; }
 
     if (gameState === STATE.MAIN || gameState === STATE.BOSS) {
       drawMain();
@@ -2936,6 +3129,7 @@
     } else {
       ctx.fillText('Золото: ' + coins + ' / ' + totalCoins, 20, 32);
     }
+    drawDayNightOverlay();
   }
 
   function drawBomber() {
@@ -3111,6 +3305,2978 @@
     ctx.restore();
   }
 
+  // ============================================================
+  //  ГОРОД: катсцена → гильдия → выбор класса → прогулка
+  // ============================================================
+
+  const CLASS_DEFS = {
+    mage: {
+      id: 'mage',
+      title: 'Маг',
+      color: '#5e35b1',
+      blurb: 'Шар 1 ур. — 1 урон',
+      equipment: [{ id: 'orb_focus', name: 'Фокус шара', damage: 1 }],
+      skills: [{ id: 'orb', name: 'Шар', level: 1, damage: 1, kind: 'orb', color: '#7e57c2' }]
+    },
+    swordsman: {
+      id: 'swordsman',
+      title: 'Мечник',
+      color: '#c62828',
+      blurb: 'Меч 1 урон + Рассекание 1 ур.',
+      equipment: [{ id: 'sword', name: 'Обычный меч', damage: 1 }],
+      skills: [{ id: 'slash', name: 'Рассекание', level: 1, damage: 1, kind: 'slash', color: '#ef5350' }]
+    },
+    archer: {
+      id: 'archer',
+      title: 'Лучник',
+      color: '#2e7d32',
+      blurb: 'Лук 1 урон + Выстрел 1 ур.',
+      equipment: [{ id: 'bow', name: 'Лук', damage: 1 }],
+      skills: [{ id: 'shot', name: 'Выстрел из лука', level: 1, damage: 1, kind: 'shot', color: '#8d6e63' }]
+    }
+  };
+
+  // Доп. навыки класса — выбор при повышении уровня
+  const CLASS_SKILL_POOL = {
+    mage: [
+      { id: 'orb', name: 'Шар', level: 1, damage: 1, kind: 'orb', color: '#7e57c2' },
+      { id: 'frost', name: 'Мороз', level: 1, damage: 1, kind: 'orb', color: '#81d4fa' },
+      { id: 'spark', name: 'Искра', level: 1, damage: 1, kind: 'orb', color: '#ffeb3b' }
+    ],
+    swordsman: [
+      { id: 'slash', name: 'Рассекание', level: 1, damage: 1, kind: 'slash', color: '#ef5350' },
+      { id: 'thrust', name: 'Выпад', level: 1, damage: 1, kind: 'slash', color: '#ff7043' },
+      { id: 'spin', name: 'Вихрь', level: 1, damage: 1, kind: 'slash', color: '#e53935' }
+    ],
+    archer: [
+      { id: 'shot', name: 'Выстрел из лука', level: 1, damage: 1, kind: 'shot', color: '#8d6e63' },
+      { id: 'pierce', name: 'Пробитие', level: 1, damage: 1, kind: 'shot', color: '#5d4037' },
+      { id: 'multishot', name: 'Тройной выстрел', level: 1, damage: 1, kind: 'multishot', color: '#6d4c41' }
+    ]
+  };
+
+  let levelUpChoices = [];
+  let levelUpFocus = 0;
+  let pendingLevelUps = 0;
+
+  let townPlayer = null;
+  let townProjectiles = [];
+  let townSkillCd = 0;
+  let cityIntroDone = false;
+  const classOverlay = document.getElementById('classOverlay');
+
+  let rpgUi = null;
+  let gearFocus = 0;
+  let bagFocus = 0;
+  let gearPanelSide = 'slots';
+  let fieldSlimes = [];
+  let fieldDrops = [];
+  let fieldNodes = [];
+  let dungeonLevel = 1;
+  let dungeonChest = null;
+  let dungeonCleared = false;
+  let invulnTimer = 0;
+  let townNpcs = [];
+
+  // День / ночь: по 4 минуты
+  const DAY_NIGHT_MS = 4 * 60 * 1000;
+  let dayNight = {
+    isNight: false,
+    phaseStart: Date.now()
+  };
+
+  function resetDayNight() {
+    dayNight.isNight = false;
+    dayNight.phaseStart = Date.now();
+  }
+
+  function updateDayNight() {
+    const elapsed = Date.now() - dayNight.phaseStart;
+    if (elapsed >= DAY_NIGHT_MS) {
+      dayNight.isNight = !dayNight.isNight;
+      dayNight.phaseStart = Date.now();
+      const inWorld = gameState === STATE.MAIN || gameState === STATE.BOSS ||
+        gameState === STATE.CITY || gameState === STATE.HUB ||
+        gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER;
+      if (inWorld) {
+        messageDiv.textContent = dayNight.isNight ? 'Наступила ночь...' : 'Наступил день!';
+        setTimeout(() => {
+          if (messageDiv.textContent === 'Наступила ночь...' || messageDiv.textContent === 'Наступил день!') {
+            messageDiv.textContent = '';
+          }
+        }, 2000);
+      }
+    }
+  }
+
+  function dayNightRemainingMs() {
+    return Math.max(0, DAY_NIGHT_MS - (Date.now() - dayNight.phaseStart));
+  }
+
+  function dayNightLabel() {
+    const sec = Math.ceil(dayNightRemainingMs() / 1000);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    const t = m + ':' + (s < 10 ? '0' : '') + s;
+    return (dayNight.isNight ? 'Ночь' : 'День') + ' ' + t;
+  }
+
+  function drawDayNightOverlay() {
+    if (dayNight.isNight) {
+      ctx.fillStyle = 'rgba(8, 12, 40, 0.48)';
+      ctx.fillRect(0, 0, W, H);
+      // луна
+      ctx.fillStyle = '#fff9c4';
+      ctx.beginPath();
+      ctx.arc(700, 50, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(8, 12, 40, 0.48)';
+      ctx.beginPath();
+      ctx.arc(710, 44, 18, 0, Math.PI * 2);
+      ctx.fill();
+      // звёзды
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 28; i++) {
+        const sx = (i * 97 + 40) % W;
+        const sy = (i * 53 + 20) % 120;
+        const tw = 0.6 + Math.sin(frame * 0.05 + i) * 0.4;
+        ctx.globalAlpha = tw;
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      // лёгкий дневной блик
+      ctx.fillStyle = 'rgba(255, 250, 200, 0.04)';
+      ctx.fillRect(0, 0, W, H);
+    }
+    // индикатор
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(W / 2 - 55, 8, 110, 22);
+    ctx.fillStyle = dayNight.isNight ? '#90caf9' : '#ffe082';
+    ctx.font = 'bold 12px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(dayNightLabel(), W / 2, 23);
+  }
+
+  function sleepAtTavern() {
+    if (!townPlayer) return;
+    const cost = { priceSilver: 1, priceCopper: 0, priceGold: 0 };
+    if (!canAfford(cost)) {
+      messageDiv.textContent = 'Нужен 1⚪ за ночёвку';
+      return;
+    }
+    payFor(cost);
+    dayNight.isNight = false;
+    dayNight.phaseStart = Date.now();
+    if (townPlayer.hp < townPlayer.maxHp) {
+      townPlayer.hp = Math.min(townPlayer.maxHp, townPlayer.hp + Math.ceil(townPlayer.maxHp * 0.3));
+    }
+    rpgUi = null;
+    shopKind = null;
+    messageDiv.textContent = 'Ты переночевал в таверне. Наступил день!';
+    setTimeout(() => {
+      if (messageDiv.textContent.indexOf('переночевал') !== -1) messageDiv.textContent = '';
+    }, 2500);
+  }
+
+  // Раскладка зданий по схеме: ворота снизу, фонтан в центре, гильдия (#1) сверху
+  const TOWN_BUILDINGS = [
+    { id: 1, name: 'Гильдия', x: 340, y: 22, w: 120, h: 64, door: true, color: '#a1887f', roof: '#5d4037', special: 'guild', accent: '#ffe082' },
+    { id: 2, name: 'Дом 2', x: 500, y: 88, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
+    { id: 3, name: 'Цветы', x: 505, y: 210, w: 68, h: 52, door: true, color: '#f48fb1', roof: '#ad1457', special: 'flowers', accent: '#fce4ec' },
+    { id: 6, name: 'Дом 6', x: 500, y: 300, w: 72, h: 52, door: true, color: '#bcaaa4', roof: '#4e342e', accent: '#d7ccc8' },
+    { id: 4, name: 'Дом 4', x: 640, y: 88, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
+    { id: 5, name: 'Дом 5', x: 645, y: 295, w: 80, h: 56, door: true, color: '#ffcc80', roof: '#ef6c00', accent: '#fff3e0' },
+    { id: 7, name: 'Оружейная', x: 230, y: 88, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
+    { id: 8, name: 'Зелья', x: 228, y: 210, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
+    { id: 11, name: 'Таверна', x: 225, y: 300, w: 72, h: 52, door: true, color: '#d7ccc8', roof: '#5d4037', accent: '#efebe9', special: 'tavern' },
+    { id: 9, name: 'Дом 9', x: 80, y: 88, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
+    { id: 10, name: 'Дом 10', x: 75, y: 280, w: 80, h: 56, door: true, color: '#80cbc4', roof: '#00695c', accent: '#e0f2f1' }
+  ];
+
+  const TOWN_FOUNTAIN = { x: 400, y: 210, r: 38 };
+  const TOWN_GATES = { x: 360, y: 400, w: 80, h: 40 };
+
+  function resetTownState() {
+    townPlayer = null;
+    townProjectiles = [];
+    townSkillCd = 0;
+    cityIntroDone = false;
+    rpgUi = null;
+    fieldSlimes = [];
+    fieldDrops = [];
+    fieldNodes = [];
+    pendingLevelUps = 0;
+    levelUpChoices = [];
+    townNpcs = [];
+    readingNote = null;
+    dungeonChest = null;
+    dungeonCleared = false;
+    resetDayNight();
+    if (classOverlay) classOverlay.classList.remove('visible');
+  }
+
+  function startCityIntro() {
+    hideRestartOverlay();
+    if (classOverlay) classOverlay.classList.remove('visible');
+    setAdventureHud(true);
+    gameState = STATE.CITY_INTRO;
+    levelSpan.textContent = 'Город';
+    messageDiv.textContent = '';
+    document.getElementById('controlsHint').innerHTML =
+      'Катсцена... &nbsp;|&nbsp; <kbd>Пробел</kbd> – дальше / пропустить';
+    cutscene = {
+      kind: 'city',
+      t: 0,
+      phase: 0,
+      gnomeX: 400,
+      gnomeY: 430,
+      caption: 'Гномик стоит перед воротами города...',
+      insideGuild: false,
+      adminTalk: false
+    };
+  }
+
+  function advanceCityIntro() {
+    if (!cutscene || cutscene.kind !== 'city') return;
+    cutscene.phase++;
+    cutscene.t = 0;
+    const c = cutscene;
+    if (c.phase === 1) {
+      c.caption = 'Он проходит через ворота...';
+    } else if (c.phase === 2) {
+      c.gnomeX = 400;
+      c.gnomeY = 360;
+      c.caption = '«Хочу купить цветы для принцессы...»';
+    } else if (c.phase === 3) {
+      c.gnomeX = 520;
+      c.gnomeY = 230;
+      c.caption = 'Но цветы слишком дорогие для него...';
+    } else if (c.phase === 4) {
+      c.caption = '«Нужно заработать денег!»';
+    } else if (c.phase === 5) {
+      c.gnomeX = 400;
+      c.gnomeY = 160;
+      c.caption = 'Он видит дом: «Гильдия искателей приключений»';
+    } else if (c.phase === 6) {
+      c.gnomeX = 400;
+      c.gnomeY = 95;
+      c.insideGuild = true;
+      c.caption = 'Гномик заходит в гильдию...';
+    } else if (c.phase === 7) {
+      c.adminTalk = true;
+      c.caption = 'Администратор: «Кем хочешь стать, искатель?»';
+    } else {
+      openClassSelect();
+    }
+  }
+
+  function updateCityIntro() {
+    if (!cutscene || cutscene.kind !== 'city') return;
+    const c = cutscene;
+    c.t++;
+
+    // Автопереход фаз + движение
+    if (c.phase === 0 && c.t > 90) advanceCityIntro();
+    else if (c.phase === 1) {
+      c.gnomeY -= 1.1;
+      if (c.gnomeY <= 360 || c.t > 100) advanceCityIntro();
+    } else if (c.phase === 2 && c.t > 100) advanceCityIntro();
+    else if (c.phase === 3) {
+      c.gnomeX += (535 - c.gnomeX) * 0.04;
+      c.gnomeY += (230 - c.gnomeY) * 0.04;
+      if (c.t > 110) advanceCityIntro();
+    } else if (c.phase === 4 && c.t > 90) advanceCityIntro();
+    else if (c.phase === 5) {
+      c.gnomeX += (400 - c.gnomeX) * 0.05;
+      c.gnomeY += (120 - c.gnomeY) * 0.05;
+      if (c.t > 110) advanceCityIntro();
+    } else if (c.phase === 6 && c.t > 70) advanceCityIntro();
+    else if (c.phase === 7 && c.t > 80) openClassSelect();
+
+    if (c.t > 12 && keys.Space) {
+      keys.Space = false;
+      if (c.phase >= 7) openClassSelect();
+      else advanceCityIntro();
+    }
+  }
+
+  function openClassSelect() {
+    cutscene = null;
+    gameState = STATE.CLASS_SELECT;
+    levelSpan.textContent = 'Гильдия';
+    messageDiv.textContent = 'Выбери класс';
+    document.getElementById('controlsHint').innerHTML = 'Выбери: маг, мечник или лучник';
+    if (classOverlay) classOverlay.classList.add('visible');
+  }
+
+  function applyClassChoice(classId) {
+    const def = CLASS_DEFS[classId];
+    if (!def) return;
+    if (classOverlay) classOverlay.classList.remove('visible');
+
+    const load = starterLoadout(def.id);
+    townPlayer = {
+      x: 400,
+      y: 130,
+      w: 18,
+      h: 22,
+      speed: 2.4,
+      facing: 1,
+      dirX: 1,
+      dirY: 0,
+      classId: def.id,
+      equipment: [],
+      slots: load.slots,
+      bag: load.bag,
+      skills: def.skills.map(s => Object.assign({}, s)),
+      anim: 0,
+      hp: 10,
+      maxHp: 10,
+      level: 1,
+      xp: 0,
+      xpToNext: 10,
+      activeSkill: 0,
+      copper: 0,
+      silver: 10,
+      gold: 0,
+      mana: def.id === 'mage' ? 1 : 0,
+      maxMana: def.id === 'mage' ? 1 : 0,
+      baseSpeed: 2.4,
+      slowTimer: 0
+    };
+    townProjectiles = [];
+    townSkillCd = 0;
+    rpgUi = null;
+    pendingLevelUps = 0;
+    levelUpChoices = [];
+    cityIntroDone = true;
+    gameState = STATE.CITY;
+    setAdventureHud(true);
+    levelSpan.textContent = 'Город · ' + def.title;
+    if (advLevelSpan) advLevelSpan.textContent = def.title + ' · Lv.1';
+    messageDiv.textContent = 'Класс выбран! В мешке: штаны и бутылка';
+    document.getElementById('controlsHint').innerHTML =
+      '<kbd>←↑→↓</kbd> &nbsp;|&nbsp; <kbd>E</kbd> магазин &nbsp;|&nbsp; <kbd>Z</kbd> инвентарь &nbsp;|&nbsp; <kbd>C</kbd> зелье &nbsp;|&nbsp; <kbd>Пробел</kbd> навык';
+    setTimeout(() => {
+      if (messageDiv.textContent.startsWith('Класс')) messageDiv.textContent = '';
+    }, 2800);
+    updateUI();
+  }
+
+  function townSolidAt(nx, ny, nw, nh) {
+    const box = { x: nx, y: ny, w: nw, h: nh };
+    for (let b of TOWN_BUILDINGS) {
+      // чуть уже хитбокс — можно пройти между домами
+      const hit = { x: b.x + 6, y: b.y + 10, w: b.w - 12, h: b.h - 14 };
+      if (rectCollide(box, hit)) return true;
+    }
+    const fx = TOWN_FOUNTAIN.x;
+    const fy = TOWN_FOUNTAIN.y;
+    const cx = nx + nw / 2;
+    const cy = ny + nh / 2;
+    if (Math.hypot(cx - fx, cy - fy) < TOWN_FOUNTAIN.r - 4) return true;
+    // стены города (у ворот можно выйти)
+    const atGates = (nx + nw / 2 > TOWN_GATES.x - 5 && nx + nw / 2 < TOWN_GATES.x + TOWN_GATES.w + 5 && ny > TOWN_GATES.y - 30);
+    if (nx < 18 || ny < 18 || nx + nw > W - 18 || (!atGates && ny + nh > H - 18)) return true;
+    return false;
+  }
+
+  function updateCity() {
+    if (!townPlayer) return;
+    const p = townPlayer;
+    p.anim += 0.15;
+    if (!rpgUi) {
+      let dx = 0, dy = 0;
+      if (keys.ArrowLeft) dx -= 1;
+      if (keys.ArrowRight) dx += 1;
+      if (keys.ArrowUp) dy -= 1;
+      if (keys.ArrowDown) dy += 1;
+      if (dx || dy) {
+        const len = Math.hypot(dx, dy) || 1;
+        p.dirX = dx / len;
+        p.dirY = dy / len;
+        if (Math.abs(dx) >= Math.abs(dy)) p.facing = dx < 0 ? -1 : 1;
+        const spd = getMoveSpeed();
+        const mx = p.dirX * spd;
+        const my = p.dirY * spd;
+        if (!townSolidAt(p.x + mx, p.y, p.w, p.h)) p.x += mx;
+        if (!townSolidAt(p.x, p.y + my, p.w, p.h)) p.y += my;
+      }
+
+      if (p.slowTimer > 0) p.slowTimer--;
+
+      if (townSkillCd > 0) townSkillCd--;
+      if (keys.Space && townSkillCd <= 0) {
+        keys.Space = false;
+        castTownSkill();
+      }
+    }
+
+    for (let i = townProjectiles.length - 1; i >= 0; i--) {
+      const pr = townProjectiles[i];
+      pr.x += pr.vx;
+      pr.y += pr.vy;
+      pr.life--;
+      if (pr.life <= 0 || pr.x < 0 || pr.y < 0 || pr.x > W || pr.y > H) {
+        townProjectiles.splice(i, 1);
+      }
+    }
+
+    // Выход из города через ворота → поляна
+    if (p.y + p.h > TOWN_GATES.y + 8 && p.x + p.w / 2 > TOWN_GATES.x - 10 && p.x + p.w / 2 < TOWN_GATES.x + TOWN_GATES.w + 10) {
+      enterHub('city');
+      return;
+    }
+
+    // Подсказка у зданий
+    nearTownBuilding = null;
+    for (let b of TOWN_BUILDINGS) {
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      const bx = b.x + b.w / 2;
+      const by = b.y + b.h + 8;
+      if (Math.hypot(cx - bx, cy - by) < 36) { nearTownBuilding = b; break; }
+    }
+    if (nearTownBuilding && !messageDiv.textContent.startsWith('Получено') && !rpgUi) {
+      let tip = nearTownBuilding.name + (nearTownBuilding.id ? ' (№' + nearTownBuilding.id + ')' : '');
+      if (nearTownBuilding.special === 'guild' || nearTownBuilding.special === 'weapons' ||
+          nearTownBuilding.special === 'potions' || nearTownBuilding.special === 'tavern') {
+        tip += '  ·  [E] войти';
+      }
+      messageDiv.textContent = tip;
+    } else if (!rpgUi && !messageDiv.textContent.startsWith('Получено') && messageDiv.textContent.indexOf('№') !== -1) {
+      messageDiv.textContent = '';
+    }
+
+    regenMana();
+    updateTownNpcs();
+  }
+
+  function castTownSkill() {
+    const p = townPlayer;
+    if (!p || !p.skills.length) return;
+    const sk = p.skills[p.activeSkill || 0] || p.skills[0];
+    const kind = sk.kind || sk.id;
+    // мана только у мага
+    if (p.classId === 'mage') {
+      const cost = 1;
+      if ((p.mana || 0) < cost) {
+        messageDiv.textContent = 'Не хватает маны!';
+        setTimeout(() => { if (messageDiv.textContent === 'Не хватает маны!') messageDiv.textContent = ''; }, 800);
+        return;
+      }
+      p.mana -= cost;
+    }
+    townSkillCd = 28;
+    const cx = p.x + p.w / 2;
+    const cy = p.y + p.h / 2;
+    let dx = p.dirX, dy = p.dirY;
+    if (!dx && !dy) { dx = p.facing; dy = 0; }
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const col = sk.color || '#7e57c2';
+
+    if (kind === 'orb') {
+      townProjectiles.push({
+        kind: 'orb', x: cx + dx * 10, y: cy + dy * 10, vx: dx * 4.2, vy: dy * 4.2,
+        r: 7 + sk.level, damage: sk.damage, life: 70, color: col
+      });
+    } else if (kind === 'slash') {
+      townProjectiles.push({
+        kind: 'slash', x: cx + dx * 18, y: cy + dy * 18, vx: 0, vy: 0,
+        r: 20 + sk.level * 2, damage: sk.damage, life: 12, color: col, dirX: dx, dirY: dy
+      });
+    } else if (kind === 'shot') {
+      townProjectiles.push({
+        kind: 'arrow', x: cx + dx * 8, y: cy + dy * 8, vx: dx * 5.5, vy: dy * 5.5,
+        r: 4, damage: sk.damage, life: 55, color: col
+      });
+    } else if (kind === 'multishot') {
+      for (let a = -0.25; a <= 0.25; a += 0.25) {
+        const ang = Math.atan2(dy, dx) + a;
+        townProjectiles.push({
+          kind: 'arrow', x: cx + Math.cos(ang) * 8, y: cy + Math.sin(ang) * 8,
+          vx: Math.cos(ang) * 5.2, vy: Math.sin(ang) * 5.2,
+          r: 4, damage: sk.damage, life: 50, color: col
+        });
+      }
+    }
+    messageDiv.textContent = sk.name + ' Lv.' + sk.level + ' (−' + sk.damage + ' урона)';
+    setTimeout(() => {
+      if (messageDiv.textContent.indexOf('урона') !== -1) messageDiv.textContent = '';
+    }, 900);
+  }
+
+  function regenMana() {
+    if (!townPlayer || townPlayer.classId !== 'mage') return;
+    if (townPlayer.mana < townPlayer.maxMana) {
+      townPlayer.mana = Math.min(townPlayer.maxMana, townPlayer.mana + 0.04);
+    }
+  }
+
+  function dropSlimeCore(x, y) {
+    fieldDrops.push({
+      kind: 'slime_core',
+      x: x + rand(-8, 8),
+      y: y + rand(-6, 6),
+      r: 10,
+      bob: rand(0, Math.PI * 2),
+      taken: false
+    });
+    messageDiv.textContent = 'Ядро выпало — подойди и подбери!';
+    setTimeout(() => {
+      if (messageDiv.textContent.indexOf('Ядро выпало') !== -1) messageDiv.textContent = '';
+    }, 1200);
+  }
+
+  function updateFieldDrops() {
+    if (!townPlayer || !fieldDrops.length) return;
+    const pcx = townPlayer.x + townPlayer.w / 2;
+    const pcy = townPlayer.y + townPlayer.h / 2;
+    for (let i = fieldDrops.length - 1; i >= 0; i--) {
+      const d = fieldDrops[i];
+      if (d.taken) { fieldDrops.splice(i, 1); continue; }
+      d.bob += 0.12;
+      if (Math.hypot(pcx - d.x, pcy - d.y) < 22) {
+        d.taken = true;
+        if (d.kind === 'slime_core') {
+          townPlayer.bag.push(makeItem(
+            'slime_core_' + frame + '_' + i,
+            'Ядро слизня I',
+            'quest',
+            { desc: 'Можно сдать в гильдии за 1⚪', coreLevel: 1, sellSilver: 1 }
+          ));
+          messageDiv.textContent = 'Подобрано: Ядро слизня I';
+          setTimeout(() => {
+            if (messageDiv.textContent.indexOf('Подобрано') !== -1) messageDiv.textContent = '';
+          }, 900);
+        }
+        fieldDrops.splice(i, 1);
+      }
+    }
+  }
+
+  function drawFieldDrops() {
+    for (let d of fieldDrops) {
+      if (d.taken) continue;
+      const bounce = Math.sin(d.bob) * 3;
+      // тень
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(d.x, d.y + 6, 8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // ядро
+      const g = ctx.createRadialGradient(d.x - 2, d.y - 2 + bounce, 2, d.x, d.y + bounce, d.r);
+      g.addColorStop(0, '#c8e6c9');
+      g.addColorStop(0.5, '#66bb6a');
+      g.addColorStop(1, '#2e7d32');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y + bounce, d.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#a5d6a7';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // блик
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath();
+      ctx.arc(d.x - 3, d.y - 3 + bounce, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // подсказка
+      if (Math.sin(d.bob) > 0.6) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = '10px Segoe UI, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('ядро', d.x, d.y - 14 + bounce);
+      }
+    }
+  }
+
+  function xpNeededForLevel(level) {
+    return Math.round(10 * Math.pow(1.5, Math.max(0, level - 1)));
+  }
+
+  function gainXp(amount) {
+    if (!townPlayer || amount <= 0) return;
+    townPlayer.xp += amount;
+    messageDiv.textContent = '+' + amount + ' XP';
+    setTimeout(() => {
+      if (messageDiv.textContent.indexOf('XP') !== -1) messageDiv.textContent = '';
+    }, 700);
+    while (townPlayer.xp >= townPlayer.xpToNext) {
+      townPlayer.xp -= townPlayer.xpToNext;
+      pendingLevelUps++;
+      townPlayer.maxHp = Math.round(townPlayer.maxHp * 1.5);
+      townPlayer.hp = townPlayer.maxHp;
+      townPlayer.level++;
+      townPlayer.xpToNext = xpNeededForLevel(townPlayer.level);
+      if (advLevelSpan) {
+        const def = CLASS_DEFS[townPlayer.classId];
+        advLevelSpan.textContent = (def ? def.title + ' · ' : '') + 'Lv.' + townPlayer.level;
+      }
+      if (townPlayer.classId === 'mage') {
+        townPlayer.maxMana = Math.round((townPlayer.maxMana || 30) * 1.5);
+        townPlayer.mana = townPlayer.maxMana;
+      }
+    }
+    if (pendingLevelUps > 0 && rpgUi !== 'levelup') {
+      openLevelUpChoice();
+    }
+  }
+
+  function openLevelUpChoice() {
+    if (!townPlayer || pendingLevelUps <= 0) return;
+    levelUpChoices = [];
+    for (let i = 0; i < townPlayer.skills.length; i++) {
+      const s = townPlayer.skills[i];
+      levelUpChoices.push({
+        type: 'upgrade',
+        skillIndex: i,
+        title: 'Улучшить «' + s.name + '»',
+        desc: 'Ур. ' + s.level + ' → ' + (s.level + 1) + '  ·  урон ' + s.damage + ' → ' + (s.damage + 1)
+      });
+    }
+    const pool = CLASS_SKILL_POOL[townPlayer.classId] || [];
+    const owned = {};
+    for (let s of townPlayer.skills) owned[s.id] = true;
+    for (let sk of pool) {
+      if (owned[sk.id]) continue;
+      levelUpChoices.push({
+        type: 'new',
+        skill: Object.assign({}, sk),
+        title: 'Выучить «' + sk.name + '»',
+        desc: 'Новый навык · ур.1 · урон ' + sk.damage
+      });
+    }
+    if (!levelUpChoices.length) {
+      pendingLevelUps = 0;
+      return;
+    }
+    levelUpFocus = 0;
+    rpgUi = 'levelup';
+    messageDiv.textContent = 'Уровень ' + townPlayer.level + '! Выбери награду';
+  }
+
+  function applyLevelUpChoice() {
+    const ch = levelUpChoices[levelUpFocus];
+    if (!ch || !townPlayer) return;
+    if (ch.type === 'upgrade') {
+      const s = townPlayer.skills[ch.skillIndex];
+      s.level++;
+      s.damage++;
+      messageDiv.textContent = s.name + ' теперь ур.' + s.level + '!';
+    } else if (ch.type === 'new') {
+      townPlayer.skills.push(Object.assign({}, ch.skill));
+      messageDiv.textContent = 'Изучено: ' + ch.skill.name;
+    }
+    pendingLevelUps = Math.max(0, pendingLevelUps - 1);
+    if (pendingLevelUps > 0) openLevelUpChoice();
+    else {
+      rpgUi = null;
+      levelUpChoices = [];
+    }
+  }
+
+  function drawTownBuilding(b, highlight) {
+    const roofH = 20;
+    const bodyY = b.y + roofH * 0.45;
+    const bodyH = b.h - roofH * 0.45;
+
+    // тень
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(b.x + b.w / 2 + 4, b.y + b.h + 4, b.w * 0.45, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // стены с лёгким градиентом
+    const wall = ctx.createLinearGradient(b.x, bodyY, b.x + b.w, bodyY + bodyH);
+    wall.addColorStop(0, b.accent || '#fff');
+    wall.addColorStop(0.35, b.color);
+    wall.addColorStop(1, b.color);
+    ctx.fillStyle = wall;
+    ctx.fillRect(b.x, bodyY, b.w, bodyH);
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(b.x + 0.5, bodyY + 0.5, b.w - 1, bodyH - 1);
+
+    // крыша
+    ctx.fillStyle = b.roof;
+    ctx.beginPath();
+    ctx.moveTo(b.x - 8, bodyY + 2);
+    ctx.lineTo(b.x + b.w / 2, b.y);
+    ctx.lineTo(b.x + b.w + 8, bodyY + 2);
+    ctx.lineTo(b.x + b.w + 2, bodyY + 8);
+    ctx.lineTo(b.x - 2, bodyY + 8);
+    ctx.closePath();
+    ctx.fill();
+    // блик на крыше
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(b.x + 8, bodyY);
+    ctx.lineTo(b.x + b.w / 2 - 4, b.y + 8);
+    ctx.stroke();
+
+    // труба
+    if (b.id % 2 === 0 || b.special === 'guild') {
+      const cx = b.x + b.w * 0.72;
+      ctx.fillStyle = '#78909c';
+      ctx.fillRect(cx, b.y + 4, 10, 18);
+      ctx.fillStyle = '#546e7a';
+      ctx.fillRect(cx - 2, b.y + 2, 14, 5);
+      if (frame % 40 < 28) {
+        ctx.fillStyle = 'rgba(200,200,200,0.35)';
+        ctx.beginPath();
+        ctx.arc(cx + 5, b.y - 2 - (frame % 20) * 0.4, 4 + (frame % 10) * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // окна с рамами и ставнями
+    function windowAt(wx, wy) {
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(wx - 2, wy - 2, 16, 16);
+      ctx.fillStyle = '#fff59d';
+      ctx.fillRect(wx, wy, 12, 12);
+      ctx.strokeStyle = '#6d4c41';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(wx + 6, wy);
+      ctx.lineTo(wx + 6, wy + 12);
+      ctx.moveTo(wx, wy + 6);
+      ctx.lineTo(wx + 12, wy + 6);
+      ctx.stroke();
+      // ставни
+      ctx.fillStyle = b.roof;
+      ctx.fillRect(wx - 7, wy, 5, 12);
+      ctx.fillRect(wx + 14, wy, 5, 12);
+    }
+    windowAt(b.x + 12, bodyY + 12);
+    windowAt(b.x + b.w - 28, bodyY + 12);
+    if (b.w > 90) windowAt(b.x + b.w / 2 - 6, bodyY + 12);
+
+    // дверь + крылечко
+    if (b.door) {
+      const dx = b.x + b.w / 2 - 9;
+      const dy = b.y + b.h - 22;
+      ctx.fillStyle = '#c4a574';
+      ctx.fillRect(dx - 6, b.y + b.h - 4, 30, 5);
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(dx, dy, 18, 22);
+      ctx.fillStyle = '#8d6e63';
+      ctx.fillRect(dx + 2, dy + 2, 14, 18);
+      ctx.fillStyle = '#ffd54f';
+      ctx.beginPath();
+      ctx.arc(dx + 14, dy + 12, 2, 0, Math.PI * 2);
+      ctx.fill();
+      // цветочный ящик
+      ctx.fillStyle = '#6d4c41';
+      ctx.fillRect(b.x + 8, bodyY + 28, 18, 5);
+      ctx.fillStyle = '#e91e63';
+      ctx.beginPath();
+      ctx.arc(b.x + 12, bodyY + 26, 2.5, 0, Math.PI * 2);
+      ctx.arc(b.x + 18, bodyY + 25, 2.5, 0, Math.PI * 2);
+      ctx.arc(b.x + 24, bodyY + 26, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // табличка / номер
+    ctx.fillStyle = highlight ? '#fffde7' : 'rgba(255,255,255,0.9)';
+    ctx.fillRect(b.x + b.w / 2 - 10, bodyY + bodyH / 2 - 2, 20, 16);
+    ctx.strokeStyle = '#5d4037';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(b.x + b.w / 2 - 10, bodyY + bodyH / 2 - 2, 20, 16);
+    ctx.fillStyle = '#3e2723';
+    ctx.font = 'bold 11px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(b.id), b.x + b.w / 2, bodyY + bodyH / 2 + 6);
+
+    if (b.special === 'guild') {
+      ctx.fillStyle = '#ffe082';
+      ctx.font = 'bold 11px Segoe UI, Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('ГИЛЬДИЯ', b.x + b.w / 2, b.y + b.h - 6);
+    }
+    if (b.special === 'flowers') {
+      ctx.fillStyle = '#fce4ec';
+      ctx.font = 'bold 10px Segoe UI, Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('ЦВЕТЫ', b.x + b.w / 2, b.y + b.h - 6);
+    }
+    if (b.special === 'weapons') {
+      ctx.fillStyle = '#e8f5e9';
+      ctx.font = 'bold 9px Segoe UI, Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('ОРУЖИЕ', b.x + b.w / 2, b.y + b.h - 6);
+    }
+    if (b.special === 'potions') {
+      ctx.fillStyle = '#f3e5f5';
+      ctx.font = 'bold 9px Segoe UI, Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('ЗЕЛЬЯ', b.x + b.w / 2, b.y + b.h - 6);
+    }
+    if (b.special === 'tavern') {
+      ctx.fillStyle = '#ffe0b2';
+      ctx.font = 'bold 9px Segoe UI, Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('ТАВЕРНА', b.x + b.w / 2, b.y + b.h - 6);
+    }
+  }
+
+  function drawPathToDoor(b) {
+    const doorX = b.x + b.w / 2;
+    const doorY = b.y + b.h;
+    // ближайшая горизонтальная дорога
+    let roadY = 212;
+    if (doorY > 280) roadY = 354;
+    else if (doorY < 160) roadY = 212;
+    else roadY = doorY > 230 ? 354 : 212;
+
+    // для гильдии — к центральной вертикальной
+    if (b.special === 'guild') {
+      ctx.fillStyle = '#bdbdbd';
+      ctx.fillRect(doorX - 10, doorY, 20, Math.max(8, 212 - doorY));
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(doorX, doorY + 2);
+      ctx.lineTo(doorX, 212);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      return;
+    }
+
+    ctx.fillStyle = '#bdbdbd';
+    const pathW = 16;
+    // вертикаль от двери к горизонтали
+    const top = Math.min(doorY, roadY + 14);
+    const bot = Math.max(doorY, roadY + 14);
+    ctx.fillRect(doorX - pathW / 2, top, pathW, bot - top + 2);
+    // если дом далеко от главной оси — короткая горизонталь к ближайшей вертикали района
+    const laneX = doorX < 400 ? 250 : 530;
+    if (Math.abs(doorX - 400) > 90) {
+      const x0 = Math.min(doorX, laneX);
+      const x1 = Math.max(doorX, laneX);
+      ctx.fillRect(x0, roadY + 6, x1 - x0, pathW);
+    }
+  }
+
+  function ensureTownNpcs() {
+    if (townNpcs.length) return;
+    townNpcs = [
+      {
+        role: 'monument', name: 'Гуляка',
+        x: 470, y: 200, facing: 1, phase: 0, t: 0, pause: 0,
+        color: '#5c6bc0', pants: '#283593', hair: '#6d4c41', skin: '#ffe0c2',
+        angle: 0.2, radius: 72
+      },
+      {
+        role: 'water', name: 'Садовник',
+        x: 150, y: 340, facing: 1, phase: 0, t: 0, pause: 0, watering: 0,
+        color: '#66bb6a', pants: '#2e7d32', hair: '#f4c430', skin: '#ffe0c2',
+        targets: [{ x: 140, y: 340 }, { x: 200, y: 360 }, { x: 100, y: 300 }, { x: 170, y: 380 }],
+        ti: 0
+      },
+      {
+        role: 'search', name: 'Искатель',
+        x: 320, y: 300, facing: -1, phase: 0, t: 0, pause: 0, look: 0,
+        color: '#ff8a65', pants: '#bf360c', hair: '#212121', skin: '#ffe0c2',
+        tx: 320, ty: 300
+      }
+    ];
+  }
+
+  function updateTownNpcs() {
+    ensureTownNpcs();
+    for (let n of townNpcs) {
+      n.t++;
+      n.phase += 0.12;
+      if (n.role === 'monument') {
+        if (n.pause > 0) { n.pause--; continue; }
+        n.angle += 0.012;
+        n.x = TOWN_FOUNTAIN.x + Math.cos(n.angle) * n.radius;
+        n.y = TOWN_FOUNTAIN.y + Math.sin(n.angle) * n.radius * 0.72;
+        n.facing = Math.cos(n.angle + 0.1) >= 0 ? 1 : -1;
+        if (n.t % 160 === 0) n.pause = 40 + (n.t % 30);
+      } else if (n.role === 'water') {
+        if (n.watering > 0) {
+          n.watering--;
+          continue;
+        }
+        if (n.pause > 0) { n.pause--; continue; }
+        const tg = n.targets[n.ti];
+        const dx = tg.x - n.x;
+        const dy = tg.y - n.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < 4) {
+          n.watering = 50;
+          n.ti = (n.ti + 1) % n.targets.length;
+          n.pause = 10;
+        } else {
+          n.x += (dx / d) * 0.7;
+          n.y += (dy / d) * 0.7;
+          n.facing = dx >= 0 ? 1 : -1;
+        }
+      } else if (n.role === 'search') {
+        if (n.look > 0) { n.look--; continue; }
+        if (n.pause > 0) { n.pause--; continue; }
+        const dx = n.tx - n.x;
+        const dy = n.ty - n.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < 5) {
+          n.look = 45;
+          n.pause = 8;
+          // новая точка поиска по городу
+          n.tx = 120 + Math.random() * 560;
+          n.ty = 120 + Math.random() * 240;
+          // не в фонтан
+          if (Math.hypot(n.tx - TOWN_FOUNTAIN.x, n.ty - TOWN_FOUNTAIN.y) < 55) {
+            n.tx = TOWN_FOUNTAIN.x + 90;
+          }
+        } else {
+          n.x += (dx / d) * 0.95;
+          n.y += (dy / d) * 0.95;
+          n.facing = dx >= 0 ? 1 : -1;
+        }
+      }
+    }
+  }
+
+  function drawTownNpc(n) {
+    const bob = Math.sin(n.phase) * (n.watering || n.look || n.pause ? 0.5 : 2);
+    ctx.save();
+    ctx.translate(n.x, n.y + bob);
+    ctx.scale(n.facing, 1);
+
+    // ноги
+    const leg = Math.sin(n.phase) * (n.watering || n.look || n.pause ? 0 : 3);
+    ctx.fillStyle = n.pants;
+    ctx.fillRect(-5, 6, 4, 8);
+    ctx.fillRect(1, 6 + leg * 0.3, 4, 8);
+    // тело
+    ctx.fillStyle = n.color;
+    ctx.fillRect(-7, -6, 14, 14);
+    // голова
+    ctx.fillStyle = n.skin;
+    ctx.beginPath();
+    ctx.arc(0, -12, 7, 0, Math.PI * 2);
+    ctx.fill();
+    // волосы
+    ctx.fillStyle = n.hair;
+    ctx.beginPath();
+    ctx.ellipse(0, -15, 7.5, 5, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    // глаза
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(-2.5, -12, 1.2, 0, Math.PI * 2);
+    ctx.arc(2.5, -12, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (n.role === 'water' && n.watering > 0) {
+      // лейка
+      ctx.fillStyle = '#546e7a';
+      ctx.fillRect(8, -2, 10, 6);
+      ctx.fillRect(16, -4, 3, 8);
+      ctx.strokeStyle = 'rgba(100,180,255,0.7)';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(18, 2);
+        ctx.lineTo(22 + i * 2, 10 + Math.sin(frame * 0.3 + i) * 3);
+        ctx.stroke();
+      }
+    }
+    if (n.role === 'search' && n.look > 0) {
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(10, -22, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#333';
+      ctx.font = 'bold 10px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('?', 10, -19);
+    }
+    ctx.restore();
+  }
+
+  function drawTownMap(opts) {
+    opts = opts || {};
+    // трава
+    ctx.fillStyle = '#7cb342';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#8bc34a';
+    for (let i = 0; i < 40; i++) {
+      const gx = (i * 97 + 20) % W;
+      const gy = (i * 53 + 15) % H;
+      ctx.fillRect(gx, gy, 18, 10);
+    }
+
+    // вода слева и снизу
+    ctx.fillStyle = '#64b5f6';
+    ctx.fillRect(0, 0, 36, H);
+    ctx.beginPath();
+    ctx.moveTo(40, H - 55);
+    ctx.quadraticCurveTo(200, H - 70, 380, H - 48);
+    ctx.quadraticCurveTo(560, H - 30, 800, H - 50);
+    ctx.lineTo(800, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f48fb1';
+    ctx.fillRect(120, H - 38, 22, 10);
+    ctx.fillStyle = '#fff59d';
+    ctx.fillRect(220, H - 42, 20, 9);
+
+    function roadH(y, x0, x1) {
+      ctx.fillStyle = '#9e9e9e';
+      ctx.fillRect(x0, y, x1 - x0, 28);
+      ctx.fillStyle = '#bdbdbd';
+      ctx.fillRect(x0, y, x1 - x0, 3);
+      ctx.strokeStyle = '#fff';
+      ctx.setLineDash([8, 8]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x0 + 4, y + 14);
+      ctx.lineTo(x1 - 4, y + 14);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    function roadV(x, y0, y1) {
+      ctx.fillStyle = '#9e9e9e';
+      ctx.fillRect(x, y0, 28, y1 - y0);
+      ctx.strokeStyle = '#fff';
+      ctx.setLineDash([8, 8]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + 14, y0 + 4);
+      ctx.lineTo(x + 14, y1 - 4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // главные дороги
+    roadV(386, 90, 410);
+    roadH(198, 60, 740);
+    roadH(340, 70, 730);
+    // боковые вертикали к рядам домов
+    roadV(236, 100, 340);
+    roadV(516, 100, 340);
+    roadV(100, 110, 320);
+    roadV(660, 110, 330);
+
+    // дорожки к каждому дому
+    for (let b of TOWN_BUILDINGS) drawPathToDoor(b);
+
+    // площадь вокруг фонтана
+    ctx.fillStyle = '#d7ccc8';
+    ctx.beginPath();
+    ctx.arc(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y, 62, 0, Math.PI * 2);
+    ctx.fill();
+    // кольцо-памятник / бордюр
+    ctx.strokeStyle = '#8d6e63';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y, 62, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // фонтан
+    ctx.fillStyle = '#90caf9';
+    ctx.beginPath();
+    ctx.arc(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y, TOWN_FOUNTAIN.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#546e7a';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.fillStyle = '#78909c';
+    ctx.beginPath();
+    ctx.arc(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      const a = frame * 0.08 + i * 1.2;
+      ctx.beginPath();
+      ctx.moveTo(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y - 8);
+      ctx.quadraticCurveTo(
+        TOWN_FOUNTAIN.x + Math.cos(a) * 16,
+        TOWN_FOUNTAIN.y - 28,
+        TOWN_FOUNTAIN.x + Math.cos(a) * 22,
+        TOWN_FOUNTAIN.y - 4
+      );
+      ctx.stroke();
+    }
+    const flowerCols = ['#f48fb1', '#fff', '#ce93d8', '#fff59d'];
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ctx.fillStyle = flowerCols[i % flowerCols.length];
+      ctx.beginPath();
+      ctx.arc(
+        TOWN_FOUNTAIN.x + Math.cos(a) * 50,
+        TOWN_FOUNTAIN.y + Math.sin(a) * 50,
+        4, 0, Math.PI * 2
+      );
+      ctx.fill();
+    }
+
+    function tree(tx, ty, spruce) {
+      if (spruce) {
+        ctx.fillStyle = '#00695c';
+        ctx.beginPath();
+        ctx.moveTo(tx, ty - 22);
+        ctx.lineTo(tx + 10, ty);
+        ctx.lineTo(tx - 10, ty);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#2e7d32';
+        ctx.beginPath();
+        ctx.arc(tx, ty - 8, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(tx - 2, ty - 2, 4, 8);
+    }
+    tree(60, 80, false); tree(140, 70, true); tree(700, 80, false);
+    tree(760, 160, false); tree(50, 300, true); tree(170, 360, false);
+
+    function lamp(lx, ly) {
+      ctx.fillStyle = '#212121';
+      ctx.fillRect(lx - 2, ly - 18, 4, 18);
+      ctx.fillStyle = '#ffe082';
+      ctx.beginPath();
+      ctx.arc(lx, ly - 20, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    lamp(370, 160); lamp(430, 160); lamp(370, 300); lamp(430, 300);
+    lamp(200, 210); lamp(600, 210); lamp(120, 160); lamp(680, 160);
+
+    // ворота
+    ctx.fillStyle = '#6d4c41';
+    ctx.fillRect(TOWN_GATES.x - 14, TOWN_GATES.y - 10, 14, 48);
+    ctx.fillRect(TOWN_GATES.x + TOWN_GATES.w, TOWN_GATES.y - 10, 14, 48);
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(TOWN_GATES.x - 18, TOWN_GATES.y - 18, TOWN_GATES.w + 36, 12);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('ВОРОТА', 400, TOWN_GATES.y + 28);
+
+    ctx.strokeStyle = '#5d4037';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(12, 12, W - 24, H - 24);
+
+    for (let b of TOWN_BUILDINGS) {
+      drawTownBuilding(b, opts.highlightId === b.id);
+    }
+  }
+
+  function drawTownGnome(x, y, facing, classId) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(facing || 1, 1);
+    // ноги
+    ctx.fillStyle = '#3e2723';
+    ctx.fillRect(-6, 8, 5, 8);
+    ctx.fillRect(1, 8, 5, 8);
+    // тело / шапка
+    ctx.fillStyle = '#d44c4c';
+    ctx.beginPath();
+    ctx.moveTo(0, -14);
+    ctx.quadraticCurveTo(14, -2, 11, 10);
+    ctx.lineTo(-11, 10);
+    ctx.quadraticCurveTo(-14, -2, 0, -14);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-12, 6, 24, 4);
+    ctx.beginPath();
+    ctx.arc(0, -14, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(-4, 0, 2, 0, Math.PI * 2);
+    ctx.arc(4, 0, 2, 0, Math.PI * 2);
+    ctx.fill();
+    // класс-маркер
+    if (classId === 'mage') {
+      ctx.fillStyle = '#7e57c2';
+      ctx.beginPath();
+      ctx.arc(12, 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (classId === 'swordsman') {
+      ctx.fillStyle = '#b0bec5';
+      ctx.fillRect(10, -6, 3, 16);
+      ctx.fillStyle = '#ef5350';
+      ctx.fillRect(8, -8, 7, 4);
+    } else if (classId === 'archer') {
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(12, 2, 8, -1.2, 1.2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawGuildAdmin(ax, ay) {
+    ctx.save();
+    ctx.translate(ax, ay);
+    const skin = '#ffe0c2';
+    const hair = '#f4c430';
+    const hairDark = '#d4a017';
+
+    // длинный хвостик сзади
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.moveTo(6, -8);
+    ctx.quadraticCurveTo(28, 10, 22, 48);
+    ctx.quadraticCurveTo(18, 56, 14, 50);
+    ctx.quadraticCurveTo(24, 20, 4, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = hairDark;
+    ctx.beginPath();
+    ctx.ellipse(18, 42, 5, 10, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // резинка хвостика
+    ctx.fillStyle = '#5c6bc0';
+    ctx.beginPath();
+    ctx.arc(10, 2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ноги / юбка-карандаш
+    ctx.fillStyle = '#283593';
+    ctx.fillRect(-9, 28, 18, 22);
+    ctx.fillStyle = '#1a237e';
+    ctx.fillRect(-10, 48, 8, 6);
+    ctx.fillRect(2, 48, 8, 6);
+
+    // деловой пиджак
+    const jacket = ctx.createLinearGradient(-14, 8, 14, 30);
+    jacket.addColorStop(0, '#5c6bc0');
+    jacket.addColorStop(1, '#303f9f');
+    ctx.fillStyle = jacket;
+    ctx.beginPath();
+    ctx.moveTo(-12, 10);
+    ctx.lineTo(-14, 32);
+    ctx.lineTo(14, 32);
+    ctx.lineTo(12, 10);
+    ctx.closePath();
+    ctx.fill();
+    // лацканы
+    ctx.fillStyle = '#1a237e';
+    ctx.beginPath();
+    ctx.moveTo(0, 10);
+    ctx.lineTo(-8, 22);
+    ctx.lineTo(-2, 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, 10);
+    ctx.lineTo(8, 22);
+    ctx.lineTo(2, 22);
+    ctx.closePath();
+    ctx.fill();
+    // рубашка
+    ctx.fillStyle = '#eceff1';
+    ctx.fillRect(-3, 10, 6, 16);
+    // пуговицы
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath();
+    ctx.arc(0, 16, 1.5, 0, Math.PI * 2);
+    ctx.arc(0, 22, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // руки
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(-13, 20, 3.2, 9, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(13, 20, 3.2, 9, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    // рукава пиджака
+    ctx.fillStyle = '#3949ab';
+    ctx.beginPath();
+    ctx.ellipse(-12, 14, 4, 6, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(12, 14, 4, 6, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // шея + голова
+    ctx.fillStyle = skin;
+    ctx.fillRect(-2.5, 4, 5, 7);
+    ctx.beginPath();
+    ctx.ellipse(0, -4, 11.5, 13.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // чёлка / волосы
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.ellipse(0, -13, 12.5, 10, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(-8, -8, 5, 7, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(7, -8, 5, 7, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = hairDark;
+    ctx.beginPath();
+    ctx.ellipse(-9, 0, 2.2, 5.5, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // глаза
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(-4.5, -3, 3.2, 3.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(4.5, -3, 3.2, 3.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5d4037';
+    ctx.beginPath();
+    ctx.arc(-4.2, -2.5, 1.8, 0, Math.PI * 2);
+    ctx.arc(4.8, -2.5, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-3.5, -3.2, 0.7, 0, Math.PI * 2);
+    ctx.arc(5.5, -3.2, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    // румянец + улыбка
+    ctx.fillStyle = 'rgba(255, 150, 160, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(-8, 3, 3, 2, 0, 0, Math.PI * 2);
+    ctx.ellipse(8, 3, 3, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#e91e63';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 5, 4, 0.15, Math.PI - 0.15);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawGuildInterior(c) {
+    ctx.fillStyle = '#3e2723';
+    ctx.fillRect(0, 0, W, H);
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#5d4037');
+    grad.addColorStop(1, '#3e2723');
+    ctx.fillStyle = grad;
+    ctx.fillRect(80, 40, W - 160, H - 80);
+
+    ctx.fillStyle = '#8d6e63';
+    ctx.fillRect(100, 60, W - 200, 40);
+    ctx.fillStyle = '#ffe082';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Гильдия искателей приключений', W / 2, 88);
+
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(280, 200, 240, 160);
+    ctx.fillStyle = '#ffc107';
+    ctx.fillRect(290, 210, 220, 12);
+
+    ctx.fillStyle = '#6d4c41';
+    ctx.fillRect(320, 150, 160, 50);
+
+    drawGuildAdmin(400, 148);
+    ctx.fillStyle = '#fff';
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Администратор', 400, 220);
+
+    if (c) {
+      drawTownGnome(c.gnomeX, c.gnomeY, 1, null);
+    }
+  }
+
+  function drawCityIntro() {
+    const c = cutscene;
+    if (!c) return;
+    if (c.insideGuild) {
+      drawGuildInterior(c);
+    } else {
+      drawTownMap({ highlightId: c.phase >= 5 ? 1 : (c.phase >= 2 && c.phase <= 3 ? 3 : 0) });
+      ensureTownNpcs();
+      updateTownNpcs();
+      for (let n of townNpcs) drawTownNpc(n);
+      drawTownGnome(c.gnomeX, c.gnomeY, 1, null);
+    }
+    // caption bar
+    ctx.fillStyle = 'rgba(10,14,28,0.75)';
+    ctx.fillRect(40, H - 70, W - 80, 52);
+    ctx.strokeStyle = '#f7d44a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(40, H - 70, W - 80, 52);
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.caption || '', W / 2, H - 44);
+  }
+
+  function drawCity() {
+    drawTownMap({});
+    ensureTownNpcs();
+    for (let n of townNpcs) drawTownNpc(n);
+    if (!townPlayer) return;
+    const p = townPlayer;
+    drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId);
+
+    for (let pr of townProjectiles) {
+      if (pr.kind === 'orb') {
+        ctx.fillStyle = pr.color;
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, pr.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.arc(pr.x - 2, pr.y - 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pr.kind === 'arrow') {
+        const ang = Math.atan2(pr.vy, pr.vx);
+        ctx.save();
+        ctx.translate(pr.x, pr.y);
+        ctx.rotate(ang);
+        ctx.strokeStyle = pr.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-8, 0);
+        ctx.lineTo(6, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#90a4ae';
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(2, -3);
+        ctx.lineTo(2, 3);
+        ctx.fill();
+        ctx.restore();
+      } else if (pr.kind === 'slash') {
+        const ang = Math.atan2(pr.dirY || 0, pr.dirX || 1);
+        ctx.strokeStyle = 'rgba(239,83,80,0.85)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, pr.r, ang - 1.1, ang + 1.1);
+        ctx.stroke();
+      }
+    }
+
+    // HUD класса
+    const def = CLASS_DEFS[p.classId];
+    if (def) {
+      ctx.fillStyle = 'rgba(16,20,36,0.7)';
+      ctx.fillRect(10, 10, 210, 52);
+      ctx.fillStyle = def.color;
+      ctx.font = 'bold 14px Segoe UI, Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(def.title, 18, 28);
+      ctx.fillStyle = '#eee';
+      ctx.font = '12px Segoe UI, Arial';
+      const eq = (p.slots && p.slots.weapon) ? p.slots.weapon.name : (p.equipment[0] ? p.equipment[0].name : '—');
+      const sk = p.skills[0] ? (p.skills[0].name + ' Lv.' + p.skills[0].level) : '—';
+      ctx.fillText('Оружие: ' + eq, 18, 44);
+      ctx.fillText('Навык: ' + sk, 18, 58);
+    }
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
+
+  // ============================================================
+  //  Амуниция / навыки / поляна / зоны
+  // ============================================================
+
+  const GEAR_SLOT_ORDER = ['weapon', 'helmet', 'top', 'bottom', 'boots', 'bag', 'potion'];
+  const GEAR_SLOT_LABELS = {
+    weapon: 'Оружие',
+    helmet: 'Шлем',
+    top: 'Одежда (верх)',
+    bottom: 'Одежда (низ)',
+    boots: 'Ботинки',
+    bag: 'Мешок',
+    potion: 'Зелье',
+    quest: 'Ресурс',
+    note: 'Записка'
+  };
+
+  function makeItem(id, name, slot, opts) {
+    opts = opts || {};
+    return {
+      id: id,
+      name: name,
+      slot: slot,
+      damage: opts.damage || 0,
+      armor: opts.armor || 0,
+      speed: opts.speed || 0,
+      heal: opts.heal || 0,
+      desc: opts.desc || '',
+      sellSilver: opts.sellSilver || 0,
+      coreLevel: opts.coreLevel || 0,
+      priceCopper: opts.priceCopper || 0,
+      priceSilver: opts.priceSilver || 0,
+      priceGold: opts.priceGold || 0,
+      manaHeal: opts.manaHeal || 0,
+      slowDuration: opts.slowDuration || 0,
+      slowFactor: opts.slowFactor || 0.55,
+      noteText: opts.noteText || '',
+      itemLevel: opts.itemLevel || 0,
+      guildLoot: !!opts.guildLoot
+    };
+  }
+
+  const WEAPON_SHOP = [
+    { name: 'Железный меч', slot: 'weapon', damage: 2, priceSilver: 3, desc: 'Оружие · 2 урона' },
+    { name: 'Боевой лук', slot: 'weapon', damage: 2, priceSilver: 3, desc: 'Оружие · 2 урона' },
+    { name: 'Посох ученика', slot: 'weapon', damage: 1, priceSilver: 2, desc: 'Для мага' },
+    { name: 'Кожаный доспех', slot: 'top', armor: 1, priceSilver: 2, desc: 'Верх · +1 броня' },
+    { name: 'Латные штаны', slot: 'bottom', armor: 1, priceSilver: 2, desc: 'Низ · +1 броня' },
+    { name: 'Боевые сапоги', slot: 'boots', armor: 1, priceSilver: 1, desc: 'Ботинки · +1 броня' },
+    { name: 'Шлем новобранца', slot: 'helmet', armor: 1, priceSilver: 2, desc: 'Шлем · +1 броня' }
+  ];
+
+  const POTION_SHOP = [
+    { name: 'Малое зелье', slot: 'potion', heal: 5, priceCopper: 40, desc: '+5 HP' },
+    { name: 'Среднее зелье', slot: 'potion', heal: 10, priceSilver: 1, desc: '+10 HP' },
+    { name: 'Большое зелье', slot: 'potion', heal: 20, priceSilver: 3, desc: '+20 HP' },
+    { name: 'Зелье маны', slot: 'potion', heal: 0, mana: 15, priceSilver: 1, desc: '+15 маны' }
+  ];
+
+  let shopKind = null;
+  let shopFocus = 0;
+  let nearTownBuilding = null;
+  let invDrag = null;
+  let gearSlotBoxes = [];
+  let bagItemBoxes = [];
+  let bagDropZone = null;
+  let bagScroll = 0;
+  let readingNote = null;
+
+  function getTotalCopper(p) {
+    p = p || townPlayer;
+    if (!p) return 0;
+    return (p.copper || 0) + (p.silver || 0) * 100 + (p.gold || 0) * 10000;
+  }
+
+  function setMoneyFromCopper(p, total) {
+    total = Math.max(0, Math.floor(total));
+    p.gold = Math.floor(total / 10000);
+    total %= 10000;
+    p.silver = Math.floor(total / 100);
+    p.copper = total % 100;
+  }
+
+  /** 100🟤 = 1⚪, 100⚪ = 1🟡 */
+  function normalizeMoney() {
+    if (!townPlayer) return;
+    setMoneyFromCopper(townPlayer, getTotalCopper(townPlayer));
+  }
+
+  function addMoney(copper, silver, gold) {
+    if (!townPlayer) return;
+    const add = (copper || 0) + (silver || 0) * 100 + (gold || 0) * 10000;
+    setMoneyFromCopper(townPlayer, getTotalCopper(townPlayer) + add);
+    updateUI();
+  }
+
+  function priceInCopper(item) {
+    return (item.priceCopper || 0) + (item.priceSilver || 0) * 100 + (item.priceGold || 0) * 10000;
+  }
+
+  function canAfford(item) {
+    if (!townPlayer) return false;
+    return getTotalCopper(townPlayer) >= priceInCopper(item);
+  }
+
+  function payFor(item) {
+    if (!townPlayer) return;
+    setMoneyFromCopper(townPlayer, getTotalCopper(townPlayer) - priceInCopper(item));
+    updateUI();
+  }
+
+  function priceLabel(item) {
+    const parts = [];
+    if (item.priceGold) parts.push(item.priceGold + '🟡');
+    if (item.priceSilver) parts.push(item.priceSilver + '⚪');
+    if (item.priceCopper) parts.push(item.priceCopper + '🟤');
+    return parts.join(' ') || 'бесплатно';
+  }
+
+  function openShop(kind) {
+    shopKind = kind;
+    shopFocus = 0;
+    rpgUi = 'shop';
+  }
+
+  function getShopList() {
+    if (shopKind === 'weapons') return WEAPON_SHOP;
+    if (shopKind === 'potions') return POTION_SHOP;
+    if (shopKind === 'guild') {
+      return [
+        {
+          name: 'Сдать все ядра слизня I',
+          action: 'sell_cores',
+          desc: '1⚪ за каждое ядро'
+        },
+        {
+          name: 'Сдать добычу данжа (этаж 1)',
+          action: 'sell_dungeon_loot',
+          desc: 'Обычный лут 3⚪ · скороходы 20⚪'
+        }
+      ];
+    }
+    if (shopKind === 'tavern') {
+      return [{
+        name: dayNight.isNight ? 'Переночевать до утра' : 'Снять комнату / переночевать',
+        action: 'sleep',
+        desc: '1⚪ — пропустить ночь, немного HP',
+        priceSilver: 1
+      }];
+    }
+    return [];
+  }
+
+  function buyShopItem() {
+    const list = getShopList();
+    const entry = list[shopFocus];
+    if (!entry || !townPlayer) return;
+
+    if (entry.action === 'sell_cores') {
+      let n = 0;
+      for (let i = townPlayer.bag.length - 1; i >= 0; i--) {
+        const it = townPlayer.bag[i];
+        if (it.coreLevel === 1 || (it.name && it.name.indexOf('Ядро слизня') !== -1)) {
+          townPlayer.bag.splice(i, 1);
+          n++;
+        }
+      }
+      if (!n) {
+        messageDiv.textContent = 'Нет ядер для сдачи';
+        return;
+      }
+      townPlayer.silver = (townPlayer.silver || 0) + n;
+      normalizeMoney();
+      updateUI();
+      messageDiv.textContent = 'Сдано ядер: ' + n + ' → +' + n + '⚪';
+      return;
+    }
+
+    if (entry.action === 'sell_dungeon_loot') {
+      let n = 0;
+      let earned = 0;
+      for (let i = townPlayer.bag.length - 1; i >= 0; i--) {
+        const it = townPlayer.bag[i];
+        if (it.guildLoot && it.sellSilver > 0) {
+          earned += it.sellSilver;
+          townPlayer.bag.splice(i, 1);
+          n++;
+        }
+      }
+      for (let k of GEAR_SLOT_ORDER) {
+        const it = townPlayer.slots[k];
+        if (it && it.guildLoot && it.sellSilver > 0) {
+          earned += it.sellSilver;
+          townPlayer.slots[k] = null;
+          n++;
+        }
+      }
+      if (!n) {
+        messageDiv.textContent = 'Нет добычи данжа для сдачи';
+        return;
+      }
+      addMoney(0, earned, 0);
+      messageDiv.textContent = 'Сдано предметов: ' + n + ' → +' + earned + '⚪';
+      return;
+    }
+
+    if (entry.action === 'sleep') {
+      sleepAtTavern();
+      return;
+    }
+
+    if (!canAfford(entry)) {
+      messageDiv.textContent = 'Не хватает монет';
+      return;
+    }
+    payFor(entry);
+    const item = makeItem(
+      'buy_' + entry.name + '_' + frame,
+      entry.name,
+      entry.slot,
+      {
+        damage: entry.damage || 0,
+        armor: entry.armor || 0,
+        heal: entry.heal || 0,
+        desc: entry.desc || '',
+        manaHeal: entry.mana || 0
+      }
+    );
+    if (entry.mana) item.manaHeal = entry.mana;
+    townPlayer.bag.push(item);
+    messageDiv.textContent = 'Куплено: ' + entry.name;
+    updateUI();
+  }
+
+  function tryInteractBuilding() {
+    if (!nearTownBuilding || rpgUi) return;
+    const sp = nearTownBuilding.special;
+    if (sp === 'guild') openShop('guild');
+    else if (sp === 'weapons') openShop('weapons');
+    else if (sp === 'potions') openShop('potions');
+    else if (sp === 'tavern') openShop('tavern');
+  }
+
+  function starterLoadout(classId) {
+    const bag = [
+      makeItem('pants_basic', 'Штаны', 'bottom', { armor: 1, desc: 'Обычные штаны' }),
+      makeItem('alcohol_bottle', 'Бутылка алкоголя', 'potion', {
+        heal: 3,
+        slowDuration: 600,
+        slowFactor: 0.55,
+        desc: '+3 HP, замедление 10 сек'
+      }),
+      makeItem('wife_note', 'Записка', 'note', {
+        desc: 'Двойной клик — прочитать',
+        noteText: 'Таким алкоголиком быть,ну это ужас, все почти пропил. Любимый, либо ты встаешь на ноги, начинаешь работать, либо я ухожу к кузнецу. Он в отличии от тебя не буянит по ночам !'
+      })
+    ];
+    return {
+      slots: {
+        weapon: null,
+        helmet: null,
+        top: null,
+        bottom: null,
+        boots: null,
+        bag: null,
+        potion: null
+      },
+      bag: bag
+    };
+  }
+
+  function getWeaponDamage() {
+    if (!townPlayer || !townPlayer.slots || !townPlayer.slots.weapon) return 0;
+    return townPlayer.slots.weapon.damage || 0;
+  }
+
+  function getArmorTotal() {
+    if (!townPlayer || !townPlayer.slots) return 0;
+    let a = 0;
+    for (let k of GEAR_SLOT_ORDER) {
+      const it = townPlayer.slots[k];
+      if (it && it.armor) a += it.armor;
+    }
+    return a;
+  }
+
+  function getSpeedBonus() {
+    if (!townPlayer || !townPlayer.slots) return 0;
+    let s = 0;
+    for (let k of GEAR_SLOT_ORDER) {
+      const it = townPlayer.slots[k];
+      if (it && it.speed) s += it.speed;
+    }
+    return s;
+  }
+
+  function getMoveSpeed() {
+    const p = townPlayer;
+    if (!p) return 2.4;
+    let spd = (p.baseSpeed || p.speed || 2.4) + getSpeedBonus();
+    if (p.slowTimer > 0) spd *= (p.slowFactor || 0.55);
+    return spd;
+  }
+
+  function toggleRpgUi(mode) {
+    if (rpgUi === 'levelup') return;
+    if (rpgUi === mode) {
+      rpgUi = null;
+      return;
+    }
+    rpgUi = mode;
+    gearFocus = 0;
+    bagFocus = 0;
+    bagScroll = 0;
+    gearPanelSide = 'slots';
+  }
+
+  function closeRpgUi() {
+    if (rpgUi === 'levelup') return;
+    if (readingNote) { readingNote = null; return; }
+    rpgUi = null;
+    shopKind = null;
+    invDrag = null;
+  }
+
+  function openNote(item) {
+    if (!item || !item.noteText) return;
+    readingNote = { title: item.name || 'Записка', text: item.noteText };
+    invDrag = null;
+  }
+
+  function drawNoteOverlay() {
+    if (!readingNote) return;
+    ctx.fillStyle = 'rgba(8, 10, 20, 0.75)';
+    ctx.fillRect(0, 0, W, H);
+    // лист бумаги
+    ctx.fillStyle = '#f5e6c8';
+    ctx.fillRect(140, 60, 520, 330);
+    ctx.strokeStyle = '#c4a574';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(140, 60, 520, 330);
+    ctx.fillStyle = '#8d6e63';
+    ctx.font = 'italic bold 20px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(readingNote.title, W / 2, 95);
+    ctx.fillStyle = '#4e342e';
+    ctx.font = '16px Georgia, serif';
+    ctx.textAlign = 'left';
+    const lines = wrapNoteText(readingNote.text, 460);
+    let y = 140;
+    for (let line of lines) {
+      ctx.fillText(line, 170, y);
+      y += 26;
+    }
+    ctx.fillStyle = '#6d4c41';
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Двойной клик по записке · Esc — закрыть', W / 2, 370);
+  }
+
+  function wrapNoteText(text, maxW) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let cur = '';
+    ctx.font = '16px Georgia, serif';
+    for (let w of words) {
+      const test = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(test).width > maxW && cur) {
+        lines.push(cur);
+        cur = w;
+      } else cur = test;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  function equipFromBag() {
+    if (!townPlayer || rpgUi !== 'gear') return;
+    if (gearPanelSide !== 'bag') {
+      gearPanelSide = 'bag';
+      bagFocus = 0;
+      return;
+    }
+    const item = townPlayer.bag[bagFocus];
+    if (!item) return;
+    if (!GEAR_SLOT_LABELS[item.slot] || item.slot === 'quest') {
+      messageDiv.textContent = 'Это ресурс — нельзя надеть';
+      setTimeout(() => { if (messageDiv.textContent.indexOf('ресурс') !== -1) messageDiv.textContent = ''; }, 1200);
+      return;
+    }
+    const slotKey = item.slot;
+    const slotIdx = GEAR_SLOT_ORDER.indexOf(slotKey);
+    if (slotIdx >= 0) gearFocus = slotIdx;
+    const prev = townPlayer.slots[slotKey];
+    townPlayer.slots[slotKey] = item;
+    townPlayer.bag.splice(bagFocus, 1);
+    if (prev) townPlayer.bag.push(prev);
+    if (bagFocus >= townPlayer.bag.length) bagFocus = Math.max(0, townPlayer.bag.length - 1);
+    townPlayer.equipment = townPlayer.slots.weapon ? [townPlayer.slots.weapon] : [];
+    messageDiv.textContent = 'Надето: ' + item.name;
+    setTimeout(() => { if (messageDiv.textContent.startsWith('Надето')) messageDiv.textContent = ''; }, 1000);
+  }
+
+  function unequipSlot() {
+    if (!townPlayer || rpgUi !== 'gear' || gearPanelSide !== 'slots') return;
+    const slotKey = GEAR_SLOT_ORDER[gearFocus];
+    const it = townPlayer.slots[slotKey];
+    if (!it || slotKey === 'bag') return;
+    townPlayer.slots[slotKey] = null;
+    townPlayer.bag.push(it);
+    townPlayer.equipment = townPlayer.slots.weapon ? [townPlayer.slots.weapon] : [];
+  }
+
+  function usePotionSlot() {
+    if (!townPlayer) return;
+    const pot = townPlayer.slots.potion;
+    if (!pot) {
+      messageDiv.textContent = 'Нет зелья в слоте';
+      return;
+    }
+    const hadEffect = !!(pot.heal || pot.manaHeal || pot.slowDuration);
+    if (!hadEffect) {
+      messageDiv.textContent = 'Это зелье пустое';
+      return;
+    }
+    if (pot.heal) townPlayer.hp = Math.min(townPlayer.maxHp, townPlayer.hp + pot.heal);
+    if (pot.manaHeal && townPlayer.maxMana) {
+      townPlayer.mana = Math.min(townPlayer.maxMana, townPlayer.mana + pot.manaHeal);
+    }
+    if (pot.slowDuration) {
+      townPlayer.slowTimer = pot.slowDuration;
+    }
+    // зелье исчезает после использования
+    townPlayer.slots.potion = null;
+    let msg = 'Выпито: ' + pot.name;
+    if (pot.heal) msg += ' (+' + pot.heal + ' HP)';
+    if (pot.slowDuration) msg += ' · замедление';
+    messageDiv.textContent = msg;
+    setTimeout(() => { if (messageDiv.textContent.indexOf('Выпито') === 0) messageDiv.textContent = ''; }, 1400);
+  }
+
+  function tryMoveItemToSlot(item, fromBagIndex, fromSlotKey, toSlotKey) {
+    if (!item || !toSlotKey) return false;
+    if (item.slot === 'quest' || item.slot === 'note') {
+      messageDiv.textContent = item.slot === 'note' ? 'Записку нельзя надеть — двойной клик, чтобы прочитать' : 'Ресурс нельзя надеть в этот слот';
+      return false;
+    }
+    if (item.slot !== toSlotKey) {
+      messageDiv.textContent = 'Сюда не подходит: нужен слот «' + GEAR_SLOT_LABELS[item.slot] + '»';
+      return false;
+    }
+    if (fromSlotKey && fromSlotKey === toSlotKey) return true;
+    const prev = townPlayer.slots[toSlotKey];
+    townPlayer.slots[toSlotKey] = item;
+    if (fromBagIndex != null) {
+      townPlayer.bag.splice(fromBagIndex, 1);
+      if (prev) townPlayer.bag.push(prev);
+    } else if (fromSlotKey) {
+      townPlayer.slots[fromSlotKey] = prev || null;
+    }
+    townPlayer.equipment = townPlayer.slots.weapon ? [townPlayer.slots.weapon] : [];
+    messageDiv.textContent = 'Надето: ' + item.name;
+    setTimeout(() => { if (messageDiv.textContent.startsWith('Надето')) messageDiv.textContent = ''; }, 800);
+    return true;
+  }
+
+  function tryMoveItemToBag(fromSlotKey) {
+    const it = townPlayer.slots[fromSlotKey];
+    if (!it) return false;
+    townPlayer.slots[fromSlotKey] = null;
+    townPlayer.bag.push(it);
+    townPlayer.equipment = townPlayer.slots.weapon ? [townPlayer.slots.weapon] : [];
+    return true;
+  }
+
+  function handleRpgUiKeys(e) {
+    if (!rpgUi) return false;
+
+    if (rpgUi === 'shop') {
+      const list = getShopList();
+      if (e.key === 'ArrowUp') {
+        shopFocus = (shopFocus + list.length - 1) % Math.max(1, list.length);
+        return true;
+      }
+      if (e.key === 'ArrowDown') {
+        shopFocus = (shopFocus + 1) % Math.max(1, list.length);
+        return true;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        buyShopItem();
+        return true;
+      }
+      if (e.key === 'Escape' || e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+        rpgUi = null;
+        shopKind = null;
+        return true;
+      }
+      return true;
+    }
+
+    if (rpgUi === 'levelup') {
+      if (e.key === 'ArrowUp') {
+        levelUpFocus = (levelUpFocus + levelUpChoices.length - 1) % levelUpChoices.length;
+        return true;
+      }
+      if (e.key === 'ArrowDown') {
+        levelUpFocus = (levelUpFocus + 1) % levelUpChoices.length;
+        return true;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        applyLevelUpChoice();
+        return true;
+      }
+      return true;
+    }
+
+    if (e.key === 'Escape' || e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я' ||
+        e.key === 'x' || e.key === 'X' || e.key === 'ч' || e.key === 'Ч') {
+      if ((e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я') && rpgUi === 'gear') { closeRpgUi(); return true; }
+      if ((e.key === 'x' || e.key === 'X' || e.key === 'ч' || e.key === 'Ч') && rpgUi === 'skills') { closeRpgUi(); return true; }
+      if (e.key === 'Escape') { closeRpgUi(); return true; }
+    }
+    if (rpgUi === 'skills') {
+      if (e.key === 'ArrowUp') {
+        townPlayer.activeSkill = (townPlayer.activeSkill + townPlayer.skills.length - 1) % Math.max(1, townPlayer.skills.length);
+        return true;
+      }
+      if (e.key === 'ArrowDown') {
+        townPlayer.activeSkill = (townPlayer.activeSkill + 1) % Math.max(1, townPlayer.skills.length);
+        return true;
+      }
+      return true;
+    }
+    if (rpgUi !== 'gear') return true;
+
+    if (e.key === 'ArrowLeft') {
+      gearPanelSide = 'slots';
+      return true;
+    }
+    if (e.key === 'ArrowRight') {
+      gearPanelSide = 'bag';
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      if (gearPanelSide === 'slots') gearFocus = (gearFocus + GEAR_SLOT_ORDER.length - 1) % GEAR_SLOT_ORDER.length;
+      else bagFocus = Math.max(0, bagFocus - 1);
+      return true;
+    }
+    if (e.key === 'ArrowDown') {
+      if (gearPanelSide === 'slots') gearFocus = (gearFocus + 1) % GEAR_SLOT_ORDER.length;
+      else bagFocus = Math.min(Math.max(0, townPlayer.bag.length - 1), bagFocus + 1);
+      return true;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (gearPanelSide === 'bag') equipFromBag();
+      else if (GEAR_SLOT_ORDER[gearFocus] === 'potion') usePotionSlot();
+      else unequipSlot();
+      return true;
+    }
+    return true;
+  }
+
+  function drawRpgPanels() {
+    if (!rpgUi || !townPlayer) return;
+    ctx.fillStyle = 'rgba(8, 10, 22, 0.72)';
+    ctx.fillRect(0, 0, W, H);
+
+    if (rpgUi === 'shop') {
+      const titles = { guild: 'Гильдия — сдача добычи', weapons: 'Оружейная', potions: 'Магазин зелий', tavern: 'Таверна' };
+      const list = getShopList();
+      ctx.fillStyle = '#1a2035';
+      ctx.fillRect(150, 45, 500, 360);
+      ctx.strokeStyle = '#80cbc4';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(150, 45, 500, 360);
+      ctx.fillStyle = '#80cbc4';
+      ctx.font = 'bold 22px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(titles[shopKind] || 'Магазин', W / 2, 80);
+      ctx.fillStyle = '#ffe082';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.fillText('🟤' + (townPlayer.copper||0) + '  ⚪' + (townPlayer.silver||0) + '  🟡' + (townPlayer.gold||0), W / 2, 105);
+      let y = 130;
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const sel = i === shopFocus;
+        ctx.fillStyle = sel ? '#00695c' : '#263238';
+        ctx.fillRect(175, y, 450, 42);
+        ctx.strokeStyle = sel ? '#fff59d' : '#546e7a';
+        ctx.strokeRect(175, y, 450, 42);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px Segoe UI, Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(it.name, 190, y + 18);
+        ctx.fillStyle = '#b0bec5';
+        ctx.font = '12px Segoe UI, Arial';
+        ctx.fillText((it.desc || '') + (it.action ? '' : '  ·  ' + priceLabel(it)), 190, y + 34);
+        y += 48;
+      }
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑↓  ·  Enter купить/сдать  ·  E/Esc выйти', W / 2, 385);
+      return;
+    }
+
+    if (rpgUi === 'levelup') {
+      ctx.fillStyle = '#1a2035';
+      ctx.fillRect(160, 50, 480, 350);
+      ctx.strokeStyle = '#f7d44a';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(160, 50, 480, 350);
+      ctx.fillStyle = '#f7d44a';
+      ctx.font = 'bold 24px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Новый уровень ' + townPlayer.level + '!', W / 2, 90);
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '14px Segoe UI, Arial';
+      ctx.fillText('Выбери навык или улучшение', W / 2, 118);
+      let y = 150;
+      for (let i = 0; i < levelUpChoices.length; i++) {
+        const ch = levelUpChoices[i];
+        const sel = i === levelUpFocus;
+        ctx.fillStyle = sel ? '#3949ab' : '#263238';
+        ctx.fillRect(190, y, 420, 48);
+        ctx.strokeStyle = sel ? '#fff59d' : '#546e7a';
+        ctx.strokeRect(190, y, 420, 48);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 15px Segoe UI, Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(ch.title, 205, y + 20);
+        ctx.fillStyle = '#90a4ae';
+        ctx.font = '12px Segoe UI, Arial';
+        ctx.fillText(ch.desc, 205, y + 38);
+        y += 56;
+      }
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑↓ выбор  ·  Enter подтвердить', W / 2, 380);
+      return;
+    }
+
+    if (rpgUi === 'skills') {
+      ctx.fillStyle = '#1a2035';
+      ctx.fillRect(180, 40, 440, 370);
+      ctx.strokeStyle = '#f7d44a';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(180, 40, 440, 370);
+      ctx.fillStyle = '#f7d44a';
+      ctx.font = 'bold 22px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Навыки (X)', W / 2, 75);
+
+      // полоска XP
+      ctx.fillStyle = '#cfd8dc';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.fillText('Уровень героя: ' + townPlayer.level, W / 2, 100);
+      drawCrystalBar(220, 112, 360, 16, townPlayer.xpToNext ? townPlayer.xp / townPlayer.xpToNext : 0, '#81d4fa', '#1565c0');
+      ctx.fillStyle = '#fff';
+      ctx.font = '11px Segoe UI, Arial';
+      ctx.fillText('XP ' + townPlayer.xp + ' / ' + townPlayer.xpToNext, W / 2, 124);
+
+      ctx.textAlign = 'left';
+      ctx.font = '15px Segoe UI, Arial';
+      let y = 160;
+      for (let i = 0; i < townPlayer.skills.length; i++) {
+        const s = townPlayer.skills[i];
+        const sel = i === (townPlayer.activeSkill || 0);
+        if (sel) {
+          ctx.fillStyle = 'rgba(57,73,171,0.55)';
+          ctx.fillRect(210, y - 16, 380, 48);
+        }
+        ctx.fillStyle = sel ? '#fff59d' : '#fff';
+        ctx.fillText((i + 1) + '. ' + s.name + '  —  ур. ' + s.level + (sel ? '  ◀' : ''), 230, y);
+        ctx.fillStyle = '#90a4ae';
+        ctx.fillText('Урон навыка: ' + s.damage, 250, y + 20);
+        y += 54;
+      }
+      if (!townPlayer.skills.length) {
+        ctx.fillStyle = '#bbb';
+        ctx.fillText('Пока нет навыков', 280, 200);
+      }
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑↓ активный навык  ·  X/Esc — закрыть', W / 2, 390);
+      return;
+    }
+
+    // GEAR — окошки инвентаря + мешок, перетаскивание мышью
+    gearSlotBoxes = [];
+    bagItemBoxes = [];
+    ctx.fillStyle = '#12182a';
+    ctx.fillRect(50, 30, 700, 390);
+    ctx.strokeStyle = 'rgba(180, 220, 255, 0.55)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(50, 30, 700, 390);
+    ctx.fillStyle = '#b3e5fc';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Инвентарь (Z) — перетащи мышкой', W / 2, 58);
+
+    // бумажная кукла / слоты-окошки
+    const slotLayout = [
+      { key: 'helmet', x: 160, y: 80, label: 'Шлем' },
+      { key: 'weapon', x: 90, y: 150, label: 'Оружие' },
+      { key: 'top', x: 160, y: 150, label: 'Верх' },
+      { key: 'bag', x: 230, y: 150, label: 'Мешок' },
+      { key: 'bottom', x: 160, y: 220, label: 'Низ' },
+      { key: 'boots', x: 160, y: 290, label: 'Ботинки' },
+      { key: 'potion', x: 230, y: 220, label: 'Зелье' }
+    ];
+    const sw = 56, sh = 56;
+    for (let s of slotLayout) {
+      gearSlotBoxes.push({ key: s.key, x: s.x, y: s.y, w: sw, h: sh });
+      // хрустальное окошко
+      const g = ctx.createLinearGradient(s.x, s.y, s.x + sw, s.y + sh);
+      g.addColorStop(0, 'rgba(200, 235, 255, 0.35)');
+      g.addColorStop(0.5, 'rgba(120, 170, 220, 0.18)');
+      g.addColorStop(1, 'rgba(80, 120, 180, 0.28)');
+      ctx.fillStyle = g;
+      ctx.fillRect(s.x, s.y, sw, sh);
+      ctx.strokeStyle = 'rgba(230, 250, 255, 0.85)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(s.x + 0.5, s.y + 0.5, sw - 1, sh - 1);
+      ctx.strokeStyle = 'rgba(100, 160, 220, 0.6)';
+      ctx.strokeRect(s.x + 3, s.y + 3, sw - 6, sh - 6);
+      // блик
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(s.x + 6, s.y + 5, sw - 18, 8);
+      ctx.fillStyle = '#e3f2fd';
+      ctx.font = '9px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(s.label, s.x + sw / 2, s.y + sh + 12);
+      const it = townPlayer.slots[s.key];
+      if (it) {
+        ctx.fillStyle = '#fffde7';
+        ctx.font = 'bold 10px Segoe UI, Arial';
+        const nm = it.name.length > 8 ? it.name.slice(0, 7) + '…' : it.name;
+        ctx.fillText(nm, s.x + sw / 2, s.y + sh / 2 + 3);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.font = '20px Segoe UI, Arial';
+        ctx.fillText('+', s.x + sw / 2, s.y + sh / 2 + 6);
+      }
+    }
+
+    // мешок справа — список ресурсов/вещей
+    bagDropZone = { x: 340, y: 78, w: 380, h: 300 };
+    const bagListTop = 110;
+    const bagListBottom = 370;
+    const bagRowH = 38;
+    const bagVisibleH = bagListBottom - bagListTop;
+    const bagContentH = Math.max(0, townPlayer.bag.length * bagRowH);
+    const bagScrollMax = Math.max(0, bagContentH - bagVisibleH + 8);
+    bagScroll = Math.max(0, Math.min(bagScroll, bagScrollMax));
+
+    ctx.fillStyle = 'rgba(30, 40, 60, 0.85)';
+    ctx.fillRect(bagDropZone.x, bagDropZone.y, bagDropZone.w, bagDropZone.h);
+    ctx.strokeStyle = 'rgba(180, 210, 255, 0.5)';
+    ctx.strokeRect(bagDropZone.x, bagDropZone.y, bagDropZone.w, bagDropZone.h);
+    ctx.fillStyle = '#ffe082';
+    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('Мешок (хранилище)', 355, 100);
+    if (bagScrollMax > 0) {
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '11px Segoe UI, Arial';
+      ctx.fillText('колесико ↓↑', 620, 100);
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(345, bagListTop, 370, bagVisibleH);
+    ctx.clip();
+
+    let by = bagListTop + 14 - bagScroll;
+    if (!townPlayer.bag.length) {
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.fillText('(пусто — сюда можно снять вещи)', 355, by);
+    }
+    for (let i = 0; i < townPlayer.bag.length; i++) {
+      const it = townPlayer.bag[i];
+      const bx = 355, boxY = by - 14, boxW = 350, boxH = 32;
+      // кликабельны только видимые строки
+      if (boxY + boxH > bagListTop && boxY < bagListBottom) {
+        bagItemBoxes.push({ index: i, x: bx, y: boxY, w: boxW, h: boxH });
+      }
+      const g2 = ctx.createLinearGradient(bx, boxY, bx, boxY + boxH);
+      g2.addColorStop(0, 'rgba(180, 210, 240, 0.25)');
+      g2.addColorStop(1, 'rgba(60, 90, 130, 0.35)');
+      ctx.fillStyle = g2;
+      ctx.fillRect(bx, boxY, boxW, boxH);
+      ctx.strokeStyle = 'rgba(220, 240, 255, 0.7)';
+      ctx.strokeRect(bx, boxY, boxW, boxH);
+      ctx.fillStyle = '#fff';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.fillText(it.name, bx + 10, boxY + 14);
+      ctx.fillStyle = '#90caf9';
+      ctx.font = '11px Segoe UI, Arial';
+      const hint = it.noteText
+        ? 'двойной клик — прочитать'
+        : '[' + (GEAR_SLOT_LABELS[it.slot] || it.slot) + ']  перетащи в окошко';
+      ctx.fillText(hint, bx + 10, boxY + 26);
+      by += bagRowH;
+    }
+    ctx.restore();
+
+    // полоска прокрутки
+    if (bagScrollMax > 0) {
+      const trackX = 715, trackY = bagListTop, trackH = bagVisibleH, trackW = 5;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(trackX, trackY, trackW, trackH);
+      const thumbH = Math.max(24, trackH * (bagVisibleH / (bagContentH + 8)));
+      const thumbY = trackY + (trackH - thumbH) * (bagScroll / bagScrollMax);
+      ctx.fillStyle = 'rgba(255, 224, 130, 0.7)';
+      ctx.fillRect(trackX, thumbY, trackW, thumbH);
+    }
+
+    // перетаскиваемый предмет
+    if (invDrag && invDrag.mx != null) {
+      ctx.fillStyle = 'rgba(255, 253, 231, 0.95)';
+      ctx.strokeStyle = '#ffd54f';
+      ctx.lineWidth = 2;
+      ctx.fillRect(invDrag.mx - 40, invDrag.my - 14, 80, 28);
+      ctx.strokeRect(invDrag.mx - 40, invDrag.my - 14, 80, 28);
+      ctx.fillStyle = '#333';
+      ctx.font = '11px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(invDrag.item.name.slice(0, 12), invDrag.mx, invDrag.my + 4);
+    }
+
+    ctx.fillStyle = '#b0bec5';
+    ctx.font = '12px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Мышь: перетащи · колесико — мешок · двойной клик по записке · C — зелье · Z/Esc', W / 2, 400);
+    drawNoteOverlay();
+  }
+
+  function moveRpgActor(solidFn) {
+    const p = townPlayer;
+    if (!p || rpgUi) return;
+    if (p.slowTimer > 0) p.slowTimer--;
+    let dx = 0, dy = 0;
+    if (keys.ArrowLeft) dx -= 1;
+    if (keys.ArrowRight) dx += 1;
+    if (keys.ArrowUp) dy -= 1;
+    if (keys.ArrowDown) dy += 1;
+    if (dx || dy) {
+      const len = Math.hypot(dx, dy) || 1;
+      p.dirX = dx / len;
+      p.dirY = dy / len;
+      if (Math.abs(dx) >= Math.abs(dy)) p.facing = dx < 0 ? -1 : 1;
+      const spd = getMoveSpeed();
+      const mx = p.dirX * spd;
+      const my = p.dirY * spd;
+      if (!solidFn(p.x + mx, p.y, p.w, p.h)) p.x += mx;
+      if (!solidFn(p.x, p.y + my, p.w, p.h)) p.y += my;
+    }
+  }
+
+  function updateProjectilesAndSkills(hitTargets) {
+    if (townSkillCd > 0) townSkillCd--;
+    if (!rpgUi && keys.Space && townSkillCd <= 0) {
+      keys.Space = false;
+      castTownSkill();
+    }
+    for (let i = townProjectiles.length - 1; i >= 0; i--) {
+      const pr = townProjectiles[i];
+      pr.x += pr.vx;
+      pr.y += pr.vy;
+      pr.life--;
+      let hit = false;
+      if (hitTargets) {
+        for (let t of hitTargets) {
+          if (!t.alive) continue;
+          const tr = t.r || 12;
+          if (Math.hypot(pr.x - (t.x + (t.w || 0) / 2), pr.y - (t.y + (t.h || 0) / 2)) < tr + (pr.r || 6)) {
+            t.hp -= pr.damage;
+            hit = true;
+            if (t.hp <= 0) {
+              t.alive = false;
+              gainXp(t.kind === 'dungeon' ? 2 : 1);
+              if (t.kind !== 'dungeon') {
+                dropSlimeCore(t.x + (t.w || 0) / 2, t.y + (t.h || 0) / 2);
+              }
+            }
+            break;
+          }
+        }
+      }
+      if (hit || pr.life <= 0 || pr.x < -20 || pr.y < -20 || pr.x > W + 20 || pr.y > H + 20) {
+        townProjectiles.splice(i, 1);
+      }
+    }
+  }
+
+  function drawProjectiles() {
+    for (let pr of townProjectiles) {
+      if (pr.kind === 'orb') {
+        ctx.fillStyle = pr.color;
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, pr.r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (pr.kind === 'arrow') {
+        const ang = Math.atan2(pr.vy, pr.vx);
+        ctx.save();
+        ctx.translate(pr.x, pr.y);
+        ctx.rotate(ang);
+        ctx.strokeStyle = pr.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-8, 0);
+        ctx.lineTo(6, 0);
+        ctx.stroke();
+        ctx.fillStyle = '#90a4ae';
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(2, -3);
+        ctx.lineTo(2, 3);
+        ctx.fill();
+        ctx.restore();
+      } else if (pr.kind === 'slash') {
+        const ang = Math.atan2(pr.dirY || 0, pr.dirX || 1);
+        ctx.strokeStyle = 'rgba(239,83,80,0.85)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, pr.r, ang - 1.1, ang + 1.1);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawCrystalBar(x, y, w, h, ratio, c1, c2) {
+    ratio = Math.max(0, Math.min(1, ratio));
+    const glass = ctx.createLinearGradient(x, y, x, y + h);
+    glass.addColorStop(0, 'rgba(220, 245, 255, 0.35)');
+    glass.addColorStop(0.5, 'rgba(140, 180, 220, 0.12)');
+    glass.addColorStop(1, 'rgba(100, 140, 190, 0.28)');
+    ctx.fillStyle = glass;
+    ctx.fillRect(x, y, w, h);
+    if (ratio > 0) {
+      const fill = ctx.createLinearGradient(x, y, x, y + h);
+      fill.addColorStop(0, c1);
+      fill.addColorStop(1, c2);
+      ctx.fillStyle = fill;
+      ctx.fillRect(x + 2, y + 2, (w - 4) * ratio, h - 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillRect(x + 3, y + 2, (w - 6) * ratio, Math.max(2, (h - 4) * 0.35));
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    ctx.strokeStyle = 'rgba(120, 180, 230, 0.7)';
+    ctx.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.moveTo(x + 2, y + h * 0.3);
+    ctx.lineTo(x + 2, y + 2);
+    ctx.lineTo(x + w * 0.25, y + 2);
+    ctx.stroke();
+  }
+
+  function drawHpBar() {
+    if (!townPlayer) return;
+    const isMage = townPlayer.classId === 'mage' && townPlayer.maxMana > 0;
+    const boxH = isMage ? 72 : 56;
+    const w = 140;
+    const x = W - 158;
+    ctx.fillStyle = 'rgba(10, 16, 32, 0.55)';
+    ctx.fillRect(x - 6, 8, w + 16, boxH);
+    ctx.strokeStyle = 'rgba(180, 220, 255, 0.4)';
+    ctx.strokeRect(x - 6, 8, w + 16, boxH);
+
+    drawCrystalBar(x, 14, w, 12, townPlayer.hp / townPlayer.maxHp, '#ff8a80', '#c62828');
+    drawCrystalBar(x, 30, w, 8, townPlayer.xpToNext ? townPlayer.xp / townPlayer.xpToNext : 0, '#81d4fa', '#1565c0');
+    let ty = 52;
+    if (isMage) {
+      drawCrystalBar(x, 42, w, 10, townPlayer.mana / townPlayer.maxMana, '#ce93d8', '#6a1b9a');
+      ty = 64;
+    }
+    ctx.fillStyle = '#e3f2fd';
+    ctx.font = '11px Segoe UI, Arial';
+    ctx.textAlign = 'left';
+    let line = 'HP ' + Math.ceil(townPlayer.hp) + '/' + townPlayer.maxHp + '  Lv.' + townPlayer.level;
+    if (isMage) line = 'HP ' + Math.ceil(townPlayer.hp) + '/' + townPlayer.maxHp + '  MP ' + Math.floor(townPlayer.mana) + '/' + townPlayer.maxMana;
+    ctx.fillText(line, x, ty);
+    if (townPlayer.slowTimer > 0) {
+      ctx.fillStyle = '#ffe082';
+      ctx.fillText('замедлен ~' + Math.ceil(townPlayer.slowTimer / 60) + 'с', x, ty + 12);
+    }
+  }
+
+  function enterHub(from) {
+    if (rpgUi !== 'levelup') closeRpgUi();
+    gameState = STATE.HUB;
+    levelSpan.textContent = 'Поляна';
+    document.getElementById('controlsHint').innerHTML =
+      '<kbd>←↑→↓</kbd> путь &nbsp;|&nbsp; <kbd>Z</kbd> амуниция &nbsp;|&nbsp; <kbd>X</kbd> навыки &nbsp;|&nbsp; <kbd>Пробел</kbd> навык';
+    townPlayer.x = 400;
+    townPlayer.y = from === 'city' ? 80 : 225;
+    if (from === 'slimes') townPlayer.y = 300;
+    if (from === 'dungeon') townPlayer.x = 300;
+    if (from === 'gather') townPlayer.x = 500;
+    if (from === 'guild') townPlayer.y = 120;
+    townProjectiles = [];
+    messageDiv.textContent = 'Куда пойти?';
+    setTimeout(() => { if (messageDiv.textContent === 'Куда пойти?') messageDiv.textContent = ''; }, 2000);
+  }
+
+  function enterCityFromHub() {
+    closeRpgUi();
+    setAdventureHud(true);
+    gameState = STATE.CITY;
+    levelSpan.textContent = 'Город · ' + (CLASS_DEFS[townPlayer.classId] || {}).title;
+    townPlayer.x = 400;
+    townPlayer.y = 370;
+    townProjectiles = [];
+    document.getElementById('controlsHint').innerHTML =
+      '<kbd>←↑→↓</kbd> &nbsp;|&nbsp; <kbd>E</kbd> магазин &nbsp;|&nbsp; <kbd>Z</kbd>/<kbd>X</kbd> &nbsp;|&nbsp; <kbd>Пробел</kbd> навык';
+    updateUI();
+  }
+
+  function enterGuildFromHub() {
+    closeRpgUi();
+    setAdventureHud(true);
+    gameState = STATE.CITY;
+    levelSpan.textContent = 'Город · Гильдия';
+    townPlayer.x = 400;
+    townPlayer.y = 120;
+    messageDiv.textContent = 'Гильдия искателей приключений · [E] сдать ядра';
+    document.getElementById('controlsHint').innerHTML =
+      '<kbd>←↑→↓</kbd> &nbsp;|&nbsp; <kbd>E</kbd> гильдия/магазины &nbsp;|&nbsp; <kbd>Z</kbd>/<kbd>X</kbd>';
+    updateUI();
+  }
+
+  function startSlimes() {
+    closeRpgUi();
+    gameState = STATE.SLIMES;
+    levelSpan.textContent = 'Поле · Слизни';
+    townPlayer.x = 400;
+    townPlayer.y = 80;
+    townProjectiles = [];
+    fieldDrops = [];
+    invulnTimer = 40;
+    fieldSlimes = [];
+    for (let i = 0; i < 5; i++) {
+      fieldSlimes.push({
+        x: 120 + i * 130 + rand(-20, 20),
+        y: 220 + rand(-40, 80),
+        w: 28, h: 22, r: 16,
+        hp: 4, maxHp: 4,
+        alive: true,
+        speed: 1.15,
+        atkCd: 0,
+        bob: rand(0, Math.PI * 2)
+      });
+    }
+    messageDiv.textContent = 'Слизни! Ядра падают на землю — подбери их';
+  }
+
+  function startDungeon() {
+    closeRpgUi();
+    gameState = STATE.DUNGEON;
+    dungeonLevel = 1;
+    dungeonCleared = false;
+    levelSpan.textContent = 'Данж · этаж ' + dungeonLevel;
+    townPlayer.x = 80;
+    townPlayer.y = 225;
+    townProjectiles = [];
+    fieldDrops = [];
+    invulnTimer = 30;
+    fieldSlimes = [];
+    const n = 3 + dungeonLevel;
+    for (let i = 0; i < n; i++) {
+      fieldSlimes.push({
+        x: 200 + (i % 4) * 140,
+        y: 120 + Math.floor(i / 4) * 120,
+        w: 26, h: 26, r: 14,
+        hp: 3 + dungeonLevel,
+        maxHp: 3 + dungeonLevel,
+        alive: true,
+        speed: 0.9 + dungeonLevel * 0.1,
+        atkCd: 0,
+        bob: 0,
+        kind: 'dungeon'
+      });
+    }
+    spawnDungeonChest();
+    messageDiv.textContent = 'Данж · этаж ' + dungeonLevel + (dungeonChest ? ' · сундук справа [E]' : '');
+  }
+
+  function spawnDungeonChest() {
+    dungeonChest = null;
+    if (dungeonLevel !== 1) return;
+    dungeonChest = {
+      x: 680,
+      y: 210,
+      w: 36,
+      h: 28,
+      opened: false
+    };
+  }
+
+  function rollDungeonFloor1Loot() {
+    // 5% — ботинки скороходы
+    if (Math.random() < 0.05) {
+      return makeItem(
+        'boots_swift_1_' + frame,
+        'Ботинки скороходы I',
+        'boots',
+        {
+          speed: 1, itemLevel: 1, guildLoot: true, sellSilver: 20,
+          desc: 'Редкие · +1 к скорости · сдать в гильдии за 20⚪'
+        }
+      );
+    }
+    const commons = [
+      makeItem('potion_small_d_' + frame, 'Малое зелье', 'potion', {
+        heal: 5, itemLevel: 1, guildLoot: true, sellSilver: 3,
+        desc: '+5 HP · сдать в гильдии за 3⚪'
+      }),
+      makeItem('bottle_d_' + frame, 'Бутылка', 'potion', {
+        heal: 3, slowDuration: 600, slowFactor: 0.55, itemLevel: 1,
+        guildLoot: true, sellSilver: 3,
+        desc: '+3 HP, замедление · сдать в гильдии за 3⚪'
+      }),
+      makeItem('sword_1_d_' + frame, 'Меч I', 'weapon', {
+        damage: 1, itemLevel: 1, guildLoot: true, sellSilver: 3,
+        desc: 'Оружие 1 ур. · сдать в гильдии за 3⚪'
+      }),
+      makeItem('staff_1_d_' + frame, 'Посох I', 'weapon', {
+        damage: 1, itemLevel: 1, guildLoot: true, sellSilver: 3,
+        desc: 'Посох 1 ур. · сдать в гильдии за 3⚪'
+      }),
+      makeItem('boots_def_1_d_' + frame, 'Ботинки I', 'boots', {
+        armor: 1, itemLevel: 1, guildLoot: true, sellSilver: 3,
+        desc: '+1 защита · сдать в гильдии за 3⚪'
+      })
+    ];
+    return commons[Math.floor(Math.random() * commons.length)];
+  }
+
+  function tryOpenDungeonChest() {
+    if (gameState !== STATE.DUNGEON || !dungeonChest || !townPlayer) return false;
+    const c = dungeonChest;
+    const pcx = townPlayer.x + townPlayer.w / 2;
+    const pcy = townPlayer.y + townPlayer.h / 2;
+    const cx = c.x + c.w / 2;
+    const cy = c.y + c.h / 2;
+    if (Math.hypot(pcx - cx, pcy - cy) > 42) return false;
+    if (c.opened) {
+      messageDiv.textContent = 'Сундук пуст';
+      setTimeout(() => {
+        if (messageDiv.textContent === 'Сундук пуст') messageDiv.textContent = '';
+      }, 900);
+      return true;
+    }
+    c.opened = true;
+    const loot = rollDungeonFloor1Loot();
+    townPlayer.bag.push(loot);
+    messageDiv.textContent = 'Сундук: ' + loot.name + '!';
+    setTimeout(() => {
+      if (messageDiv.textContent.indexOf('Сундук:') !== -1) messageDiv.textContent = '';
+    }, 1800);
+    return true;
+  }
+
+  function drawDungeonChest() {
+    if (!dungeonChest) return;
+    const c = dungeonChest;
+    const bob = c.opened ? 0 : Math.sin(frame * 0.08) * 1.5;
+    // тень
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(c.x + 2, c.y + c.h - 2, c.w - 4, 6);
+    // корпус
+    ctx.fillStyle = c.opened ? '#5d4037' : '#8d6e63';
+    ctx.fillRect(c.x, c.y + bob + 8, c.w, c.h - 8);
+    // крышка
+    if (c.opened) {
+      ctx.fillStyle = '#6d4c41';
+      ctx.fillRect(c.x - 2, c.y + bob - 4, c.w + 4, 10);
+    } else {
+      ctx.fillStyle = '#a1887f';
+      ctx.fillRect(c.x - 1, c.y + bob, c.w + 2, 12);
+      ctx.fillStyle = '#ffd54f';
+      ctx.fillRect(c.x + c.w / 2 - 3, c.y + bob + 4, 6, 6);
+    }
+    ctx.strokeStyle = '#3e2723';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(c.x, c.y + bob + (c.opened ? 8 : 0), c.w, c.opened ? c.h - 8 : c.h);
+  }
+
+  function startGather() {
+    closeRpgUi();
+    gameState = STATE.GATHER;
+    levelSpan.textContent = 'Сбор ресурсов';
+    townPlayer.x = 700;
+    townPlayer.y = 225;
+    townProjectiles = [];
+    fieldNodes = [
+      { x: 180, y: 160, kind: 'herb', name: 'Трава', taken: false },
+      { x: 320, y: 280, kind: 'wood', name: 'Ветка', taken: false },
+      { x: 480, y: 150, kind: 'stone', name: 'Камень', taken: false },
+      { x: 560, y: 300, kind: 'herb', name: 'Цветок', taken: false },
+      { x: 250, y: 350, kind: 'wood', name: 'Кора', taken: false }
+    ];
+    messageDiv.textContent = 'Подойди и нажми Пробел — собрать';
+  }
+
+  function softBound(nx, ny, nw, nh) {
+    return nx < 10 || ny < 10 || nx + nw > W - 10 || ny + nh > H - 10;
+  }
+
+  function updateHub() {
+    regenMana();
+    moveRpgActor(softBound);
+    const p = townPlayer;
+    if (p.y < 28) enterGuildFromHub();
+    else if (p.y > H - 40) startSlimes();
+    else if (p.x > W - 40) startDungeon();
+    else if (p.x < 28) startGather();
+  }
+
+  function drawHub() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#81c784');
+    g.addColorStop(1, '#558b2f');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    // тропинки
+    ctx.fillStyle = '#c4a574';
+    ctx.fillRect(385, 0, 30, H);
+    ctx.fillRect(0, 210, W, 30);
+    // указатели
+    function sign(x, y, text, col) {
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(x - 3, y, 6, 40);
+      ctx.fillStyle = col;
+      ctx.fillRect(x - 50, y - 28, 100, 32);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, x, y - 8);
+    }
+    sign(400, 50, '↑ Гильдия', '#5c6bc0');
+    sign(400, 380, '↓ Монстры', '#c62828');
+    sign(720, 210, '→ Данж', '#6a1b9a');
+    sign(80, 210, '← Сбор', '#2e7d32');
+
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = '16px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Поляна у города — выбери сторону', W / 2, 30);
+
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
+  function hurtPlayer(dmg) {
+    if (invulnTimer > 0) return;
+    const real = Math.max(1, dmg - getArmorTotal());
+    townPlayer.hp -= real;
+    invulnTimer = 45;
+    messageDiv.textContent = '−' + real + ' HP';
+    if (townPlayer.hp <= 0) {
+      townPlayer.hp = townPlayer.maxHp;
+      messageDiv.textContent = 'Поражение... возврат на поляну';
+      enterHub('slimes');
+    }
+  }
+
+  function updateSlimesZone() {
+    if (invulnTimer > 0) invulnTimer--;
+    regenMana();
+    moveRpgActor(softBound);
+    updateProjectilesAndSkills(fieldSlimes);
+    updateFieldDrops();
+    const p = townPlayer;
+    const pcx = p.x + p.w / 2;
+    const pcy = p.y + p.h / 2;
+    for (let s of fieldSlimes) {
+      if (!s.alive) continue;
+      s.bob += 0.1;
+      const dx = pcx - (s.x + s.w / 2);
+      const dy = pcy - (s.y + s.h / 2);
+      const d = Math.hypot(dx, dy) || 1;
+      s.x += (dx / d) * s.speed;
+      s.y += (dy / d) * s.speed;
+      if (s.atkCd > 0) s.atkCd--;
+      if (d < 22 && s.atkCd <= 0) {
+        hurtPlayer(1);
+        s.atkCd = 40;
+      }
+    }
+    if (p.y < 20) enterHub('slimes');
+    const alive = fieldSlimes.some(s => s.alive);
+    const dropsLeft = fieldDrops.some(d => !d.taken);
+    if (!alive && !dropsLeft) {
+      if (messageDiv.textContent !== 'Слизни побеждены!' && !messageDiv.textContent.startsWith('Подобрано')) {
+        messageDiv.textContent = 'Слизни побеждены! Можно назад ↑';
+      }
+    } else if (!alive && dropsLeft && !rpgUi) {
+      if (!messageDiv.textContent.startsWith('Подобрано') && !messageDiv.textContent.startsWith('Ядро')) {
+        messageDiv.textContent = 'Подбери ядра на земле!';
+      }
+    }
+  }
+
+  function drawSlime(s) {
+    if (!s.alive) return;
+    const bounce = Math.sin(s.bob) * 3;
+    ctx.fillStyle = s.kind === 'dungeon' ? '#7e57c2' : '#66bb6a';
+    ctx.beginPath();
+    ctx.ellipse(s.x + s.w / 2, s.y + s.h / 2 + bounce, s.w / 2, s.h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x + 10, s.y + 8 + bounce, 4, 0, Math.PI * 2);
+    ctx.arc(s.x + 18, s.y + 8 + bounce, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(s.x + 10, s.y + 8 + bounce, 1.5, 0, Math.PI * 2);
+    ctx.arc(s.x + 18, s.y + 8 + bounce, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // hp
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(s.x, s.y - 8, s.w * (s.hp / s.maxHp), 4);
+  }
+
+  function drawSlimesZone() {
+    ctx.fillStyle = '#9ccc65';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#7cb342';
+    for (let i = 0; i < 20; i++) ctx.fillRect((i * 70) % W, (i * 90) % H, 40, 20);
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('↑ назад на поляну', W / 2, 24);
+    for (let s of fieldSlimes) drawSlime(s);
+    drawFieldDrops();
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawProjectiles();
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
+  function updateDungeon() {
+    if (invulnTimer > 0) invulnTimer--;
+    regenMana();
+    moveRpgActor(function (nx, ny, nw, nh) {
+      // до победы нельзя уйти влево; после — выход на поляну
+      if (!dungeonCleared && nx < 40) return true;
+      return softBound(nx, ny, nw, nh);
+    });
+    updateProjectilesAndSkills(fieldSlimes);
+    const p = townPlayer;
+    const pcx = p.x + p.w / 2;
+    const pcy = p.y + p.h / 2;
+    for (let s of fieldSlimes) {
+      if (!s.alive) continue;
+      s.bob += 0.08;
+      const dx = pcx - (s.x + s.w / 2);
+      const dy = pcy - (s.y + s.h / 2);
+      const d = Math.hypot(dx, dy) || 1;
+      s.x += (dx / d) * s.speed;
+      s.y += (dy / d) * s.speed;
+      if (s.atkCd > 0) s.atkCd--;
+      if (d < 22 && s.atkCd <= 0) {
+        hurtPlayer(1);
+        s.atkCd = 35;
+      }
+    }
+
+    if (!dungeonCleared && !fieldSlimes.some(s => s.alive)) {
+      dungeonCleared = true;
+      messageDiv.textContent = 'Победа! Забери лут из сундука [E], затем ← выход';
+      setTimeout(() => {
+        if (messageDiv.textContent.indexOf('Победа!') !== -1) messageDiv.textContent = '';
+      }, 3500);
+    }
+
+    if (dungeonCleared && p.x < 28) {
+      enterHub('dungeon');
+      return;
+    }
+
+    // подсказка у сундука
+    if (dungeonChest && !rpgUi) {
+      const c = dungeonChest;
+      const near = Math.hypot(
+        p.x + p.w / 2 - (c.x + c.w / 2),
+        p.y + p.h / 2 - (c.y + c.h / 2)
+      ) < 42;
+      if (near && !messageDiv.textContent.startsWith('Сундук') && !messageDiv.textContent.startsWith('Победа')) {
+        messageDiv.textContent = c.opened ? 'Сундук (пуст)' : 'Сундук  ·  [E] открыть';
+      } else if (!near && (messageDiv.textContent.indexOf('Сундук') !== -1) &&
+                 !messageDiv.textContent.startsWith('Сундук:')) {
+        messageDiv.textContent = '';
+      }
+    }
+  }
+
+  function drawDungeon() {
+    ctx.fillStyle = '#263238';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#37474f';
+    ctx.fillRect(60, 40, W - 100, H - 80);
+    ctx.fillStyle = '#ffcc80';
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.arc(100 + i * 120, 70, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Segoe UI, Arial';
+    ctx.textAlign = 'left';
+    if (dungeonCleared) {
+      ctx.fillText('← выход на поляну   Данж · этаж ' + dungeonLevel + ' · очищен', 70, 30);
+    } else {
+      ctx.fillText('Данж · этаж ' + dungeonLevel + ' · победи врагов', 70, 30);
+    }
+    drawDungeonChest();
+    for (let s of fieldSlimes) drawSlime(s);
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawProjectiles();
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
+  function updateGather() {
+    moveRpgActor(softBound);
+    const p = townPlayer;
+    if (keys.Space) {
+      keys.Space = false;
+      for (let n of fieldNodes) {
+        if (n.taken) continue;
+        if (Math.hypot(p.x + p.w / 2 - n.x, p.y + p.h / 2 - n.y) < 28) {
+          n.taken = true;
+          townPlayer.bag.push(makeItem(
+            'res_' + n.kind + '_' + frame,
+            n.name + ' (ресурс)',
+            'quest',
+            { desc: 'Для заданий / крафта' }
+          ));
+          messageDiv.textContent = 'Собрано: ' + n.name;
+          break;
+        }
+      }
+    }
+    if (p.x > W - 30) enterHub('gather');
+  }
+
+  function drawGather() {
+    ctx.fillStyle = '#aed581';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Segoe UI, Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText('поляна →', W - 20, 30);
+    for (let n of fieldNodes) {
+      if (n.taken) continue;
+      if (n.kind === 'herb') ctx.fillStyle = '#43a047';
+      else if (n.kind === 'wood') ctx.fillStyle = '#6d4c41';
+      else ctx.fillStyle = '#90a4ae';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#212121';
+      ctx.font = '11px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.name, n.x, n.y + 22);
+    }
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
   function gameLoop() {
     update();
     draw();
@@ -3118,14 +6284,57 @@
   }
 
   document.addEventListener('keydown', e => {
+    const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER;
+
     if (e.key === 'Escape') {
       e.preventDefault();
-      if (gameState === STATE.MENU || gameState === STATE.GAMEOVER || gameState === STATE.WIN) return;
+      if (readingNote) { readingNote = null; return; }
+      if (rpgUi === 'levelup') return;
+      if (rpgUi) { closeRpgUi(); return; }
+      if (gameState === STATE.MENU || gameState === STATE.GAMEOVER || gameState === STATE.WIN || gameState === STATE.CLASS_SELECT) return;
       if (gameOverOverlay.classList.contains('visible')) return;
       setPaused(!paused);
       return;
     }
     if (paused) return;
+
+    if (rpgUi === 'levelup') {
+      if (handleRpgUiKeys(e)) {
+        e.preventDefault();
+        return;
+      }
+    }
+
+    if (inRpg && townPlayer) {
+      if (handleRpgUiKeys(e)) {
+        e.preventDefault();
+        return;
+      }
+      if (rpgUi === 'levelup') return;
+      if (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я') {
+        e.preventDefault();
+        toggleRpgUi('gear');
+        return;
+      }
+      if (e.key === 'x' || e.key === 'X' || e.key === 'ч' || e.key === 'Ч') {
+        e.preventDefault();
+        toggleRpgUi('skills');
+        return;
+      }
+      if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+        e.preventDefault();
+        if (gameState === STATE.DUNGEON) tryOpenDungeonChest();
+        else tryInteractBuilding();
+        return;
+      }
+      if (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') {
+        e.preventDefault();
+        usePotionSlot();
+        return;
+      }
+    }
+
     if (e.key === ' ' || e.code === 'Space') {
       e.preventDefault();
       keys.Space = true;
@@ -3151,8 +6360,136 @@
   }
 
   document.getElementById('restartBtn').addEventListener('click', restartGame);
+  const restartAdv = document.getElementById('restartBtnAdv');
+  if (restartAdv) restartAdv.addEventListener('click', restartGame);
   document.getElementById('restartOverlayBtn').addEventListener('click', restartGame);
   document.getElementById('playBtn').addEventListener('click', startGameFromMenu);
+  const skipStoryBtn = document.getElementById('skipStoryBtn');
+  if (skipStoryBtn) skipStoryBtn.addEventListener('click', startGameSkipStory);
+
+  function canvasPos(ev) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (ev.clientX - r.left) * (canvas.width / r.width),
+      y: (ev.clientY - r.top) * (canvas.height / r.height)
+    };
+  }
+
+  function hitBox(px, py, b) {
+    return px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+  }
+
+  canvas.addEventListener('wheel', ev => {
+    if (rpgUi !== 'gear' || !townPlayer) return;
+    const p = canvasPos(ev);
+    if (!bagDropZone || !hitBox(p.x, p.y, bagDropZone)) return;
+    ev.preventDefault();
+    const bagRowH = 38;
+    const bagVisibleH = 260;
+    const bagContentH = Math.max(0, townPlayer.bag.length * bagRowH);
+    const bagScrollMax = Math.max(0, bagContentH - bagVisibleH + 8);
+    bagScroll = Math.max(0, Math.min(bagScrollMax, bagScroll + ev.deltaY));
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', ev => {
+    if (rpgUi !== 'gear' || !townPlayer) return;
+    const p = canvasPos(ev);
+    for (let b of bagItemBoxes) {
+      if (hitBox(p.x, p.y, b)) {
+        const it = townPlayer.bag[b.index];
+        if (it && it.noteText) {
+          openNote(it);
+          invDrag = null;
+          ev.preventDefault();
+        }
+        return;
+      }
+    }
+  });
+
+  canvas.addEventListener('mousedown', ev => {
+    if (readingNote) {
+      readingNote = null;
+      ev.preventDefault();
+      return;
+    }
+    if (rpgUi !== 'gear' || !townPlayer) return;
+    const p = canvasPos(ev);
+    for (let b of bagItemBoxes) {
+      if (hitBox(p.x, p.y, b)) {
+        const it = townPlayer.bag[b.index];
+        // записку не таскаем сразу — читают двойным кликом; остальные можно тащить
+        if (it && it.noteText) {
+          ev.preventDefault();
+          return;
+        }
+        invDrag = {
+          item: it,
+          fromBagIndex: b.index,
+          fromSlotKey: null,
+          mx: p.x,
+          my: p.y
+        };
+        ev.preventDefault();
+        return;
+      }
+    }
+    for (let s of gearSlotBoxes) {
+      if (hitBox(p.x, p.y, s) && townPlayer.slots[s.key]) {
+        invDrag = {
+          item: townPlayer.slots[s.key],
+          fromBagIndex: null,
+          fromSlotKey: s.key,
+          mx: p.x,
+          my: p.y
+        };
+        ev.preventDefault();
+        return;
+      }
+    }
+  });
+
+  canvas.addEventListener('mousemove', ev => {
+    if (!invDrag) return;
+    const p = canvasPos(ev);
+    invDrag.mx = p.x;
+    invDrag.my = p.y;
+  });
+
+  canvas.addEventListener('mouseup', ev => {
+    if (!invDrag || !townPlayer) { invDrag = null; return; }
+    const p = canvasPos(ev);
+    let dropped = false;
+    for (let s of gearSlotBoxes) {
+      if (hitBox(p.x, p.y, s)) {
+        tryMoveItemToSlot(invDrag.item, invDrag.fromBagIndex, invDrag.fromSlotKey, s.key);
+        dropped = true;
+        break;
+      }
+    }
+    if (!dropped && bagDropZone && hitBox(p.x, p.y, bagDropZone) && invDrag.fromSlotKey) {
+      tryMoveItemToBag(invDrag.fromSlotKey);
+      dropped = true;
+    }
+    invDrag = null;
+  });
+
+  canvas.addEventListener('mouseleave', () => { invDrag = null; });
+
+  document.querySelectorAll('.class-card').forEach(btn => {
+    btn.addEventListener('click', () => applyClassChoice(btn.getAttribute('data-class')));
+  });
+
+  // Отладка: Ctrl+Shift+C — сразу в городскую катсцену
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+      e.preventDefault();
+      hideMenu();
+      hideRestartOverlay();
+      startCityIntro();
+    }
+  });
+
 
   initGame();
   gameLoop();
