@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -362,6 +362,10 @@
 
   let mousePos = { x: 400, y: 225 };
   let townPunchCd = 0;
+  let houseUiButtons = [];
+  let menuHitBoxes = [];
+  let stealBtnBox = null;
+  let uiHover = null; // { kind: 'house'|'menu'|'bag'|'slot', index }
 
   function applyMoveKeys(e, isDown) {
     const k = e.key;
@@ -3858,23 +3862,222 @@
     ctx.font = 'bold 18px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(b ? b.name : 'Дом', W / 2, 78);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '13px Segoe UI, Arial';
-    ctx.fillText('Дверь внизу · [E] выйти', W / 2, H - 20);
+    // дверь
+    houseUiButtons = [];
+  }
 
-    stealBtnBox = null;
-    if (hasStealSkill()) {
-      const stolen = !!(insideHouse.stolen || (b && houseStolenIds[b.id]));
-      stealBtnBox = { x: W / 2 - 70, y: 95, w: 140, h: 34 };
-      ctx.fillStyle = stolen ? '#455a64' : '#6a1b9a';
-      ctx.fillRect(stealBtnBox.x, stealBtnBox.y, stealBtnBox.w, stealBtnBox.h);
-      ctx.strokeStyle = '#ce93d8';
-      ctx.strokeRect(stealBtnBox.x, stealBtnBox.y, stealBtnBox.w, stealBtnBox.h);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 14px Segoe UI, Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(stolen ? 'Уже обокраден' : 'Кража', W / 2, 117);
+  function pointInBox(mx, my, b) {
+    return b && mx >= b.x && my >= b.y && mx <= b.x + b.w && my <= b.y + b.h;
+  }
+
+  function updateUiHover(mx, my) {
+    uiHover = null;
+    if (invDrag) {
+      // во время перетаскивания подсвечиваем цель сброса
+      if (rpgUi === 'gear') {
+        for (let i = 0; i < gearSlotBoxes.length; i++) {
+          if (pointInBox(mx, my, gearSlotBoxes[i])) {
+            uiHover = { kind: 'slot', index: i };
+            canvas.style.cursor = 'grabbing';
+            return;
+          }
+        }
+        if (bagDropZone && pointInBox(mx, my, bagDropZone)) {
+          uiHover = { kind: 'bagdrop', index: 0 };
+        }
+      }
+      canvas.style.cursor = 'grabbing';
+      return;
     }
+    if (insideHouse && !rpgUi && houseUiButtons) {
+      for (let i = 0; i < houseUiButtons.length; i++) {
+        if (pointInBox(mx, my, houseUiButtons[i])) {
+          uiHover = { kind: 'house', index: i };
+          canvas.style.cursor = 'pointer';
+          return;
+        }
+      }
+    }
+    if (rpgUi && rpgUi !== 'gear' && menuHitBoxes) {
+      for (let i = 0; i < menuHitBoxes.length; i++) {
+        if (pointInBox(mx, my, menuHitBoxes[i])) {
+          uiHover = { kind: 'menu', index: i };
+          if (menuHitBoxes[i].index >= 0) {
+            if (rpgUi === 'levelup') levelUpFocus = menuHitBoxes[i].index;
+            else if (rpgUi !== 'skills') shopFocus = menuHitBoxes[i].index;
+          }
+          canvas.style.cursor = 'pointer';
+          return;
+        }
+      }
+    }
+    if (rpgUi === 'gear') {
+      for (let i = 0; i < bagItemBoxes.length; i++) {
+        if (pointInBox(mx, my, bagItemBoxes[i])) {
+          uiHover = { kind: 'bag', index: i };
+          canvas.style.cursor = 'grab';
+          return;
+        }
+      }
+      for (let i = 0; i < gearSlotBoxes.length; i++) {
+        if (pointInBox(mx, my, gearSlotBoxes[i])) {
+          uiHover = { kind: 'slot', index: i };
+          canvas.style.cursor = townPlayer && townPlayer.slots[gearSlotBoxes[i].key] ? 'grab' : 'pointer';
+          return;
+        }
+      }
+    }
+    canvas.style.cursor = 'default';
+  }
+
+  function drawHouseUiButtons() {
+    const b = insideHouse && insideHouse.building;
+    if (!b) return;
+    houseUiButtons = [];
+
+    function houseBtn(x, y, w, h, label, action, bg, border) {
+      const idx = houseUiButtons.length;
+      houseUiButtons.push({ x: x, y: y, w: w, h: h, action: action });
+      const hovered = uiHover && uiHover.kind === 'house' && uiHover.index === idx;
+      let drawX = x, drawY = y, drawW = w, drawH = h;
+      if (hovered) {
+        drawX -= 2; drawY -= 2; drawW += 4; drawH += 4;
+        ctx.fillStyle = 'rgba(255, 255, 200, 0.35)';
+        ctx.fillRect(drawX - 3, drawY - 3, drawW + 6, drawH + 6);
+      }
+      ctx.fillStyle = hovered ? '#fff59d' : bg;
+      ctx.fillRect(drawX, drawY, drawW, drawH);
+      ctx.strokeStyle = hovered ? '#ffffff' : border;
+      ctx.lineWidth = hovered ? 4 : 3;
+      ctx.strokeRect(drawX + 0.5, drawY + 0.5, drawW - 1, drawH - 1);
+      ctx.fillStyle = hovered ? '#212121' : '#ffffff';
+      ctx.font = 'bold 15px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    const sp = b.special;
+    houseBtn(90, 100, 150, 44, 'Инвентарь', 'inventory', '#1565c0', '#90caf9');
+    houseBtn(560, 100, 150, 44, 'Выйти', 'exit', '#5d4037', '#bcaaa4');
+
+    const midY = 160;
+    if (sp === 'guild') {
+      houseBtn(140, midY, 240, 52, 'Сдача добычи', 'shop_guild', '#00695c', '#80cbc4');
+      houseBtn(420, midY, 240, 52, 'Задания гильдии', 'guild_quests', '#ef6c00', '#ffe082');
+    } else if (sp === 'weapons') {
+      houseBtn(220, midY, 360, 52, 'Оружейная — открыть', 'shop_weapons', '#2e7d32', '#a5d6a7');
+    } else if (sp === 'potions') {
+      houseBtn(220, midY, 360, 52, 'Зелья — открыть', 'shop_potions', '#6a1b9a', '#ce93d8');
+    } else if (sp === 'flowers') {
+      houseBtn(220, midY, 360, 52, 'Цветы — купить', 'shop_flowers', '#ad1457', '#f48fb1');
+    } else if (sp === 'tavern') {
+      houseBtn(220, midY, 360, 52, 'Таверна — ночлег', 'shop_tavern', '#4e342e', '#d7ccc8');
+    } else if (hasStealSkill()) {
+      const stolen = !!(insideHouse.stolen || houseStolenIds[b.id]);
+      houseBtn(220, midY, 360, 52, stolen ? 'Уже обокраден' : 'Кража', 'steal',
+        stolen ? '#455a64' : '#6a1b9a', '#ce93d8');
+    }
+
+    // дверь
+    const doorIdx = houseUiButtons.length;
+    houseUiButtons.push({ x: 370, y: H - 70, w: 60, h: 30, action: 'exit' });
+    if (uiHover && uiHover.kind === 'house' && uiHover.index === doorIdx) {
+      ctx.strokeStyle = '#fff59d';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(367, H - 73, 66, 36);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(W / 2 - 240, H - 36, 480, 24);
+    ctx.fillStyle = '#fffde7';
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Наведи курсор — кнопка подсветится · ЛКМ — нажать', W / 2, H - 20);
+  }
+
+  function handleHouseUiClick(mx, my) {
+    if (!insideHouse) return false;
+    if (rpgUi) return false;
+    if (!houseUiButtons || !houseUiButtons.length) return false;
+    for (let i = houseUiButtons.length - 1; i >= 0; i--) {
+      const btn = houseUiButtons[i];
+      if (mx < btn.x || my < btn.y || mx > btn.x + btn.w || my > btn.y + btn.h) continue;
+      if (btn.action === 'exit') { exitHouseInterior(); return true; }
+      if (btn.action === 'inventory') { toggleRpgUi('gear'); return true; }
+      if (btn.action === 'steal') { tryStealHouse(); return true; }
+      if (btn.action === 'shop_guild') { openShop('guild'); return true; }
+      if (btn.action === 'shop_weapons') { openShop('weapons'); return true; }
+      if (btn.action === 'shop_potions') { openShop('potions'); return true; }
+      if (btn.action === 'shop_flowers') { openShop('flowers'); return true; }
+      if (btn.action === 'shop_tavern') { openShop('tavern'); return true; }
+      if (btn.action === 'guild_quests') { openGuildQuestsMenu(); return true; }
+      return true;
+    }
+    return false;
+  }
+
+  function handleMenuUiClick(mx, my) {
+    if (!rpgUi || !menuHitBoxes.length) return false;
+    for (let i = menuHitBoxes.length - 1; i >= 0; i--) {
+      const row = menuHitBoxes[i];
+      if (!hitBox(mx, my, row)) continue;
+
+      if (row.action === 'close') {
+        if (rpgUi === 'shop') { rpgUi = null; shopKind = null; }
+        else if (rpgUi === 'guild_quests') rpgUi = null;
+        else rpgUi = null;
+        return true;
+      }
+
+      if (rpgUi === 'shop') {
+        shopFocus = row.index;
+        buyShopItem();
+        return true;
+      }
+      if (rpgUi === 'guild_quests') {
+        shopFocus = row.index;
+        const list = getGuildQuestListUi();
+        const entry = list[shopFocus];
+        if (!entry) return true;
+        if (entry.locked) {
+          messageDiv.textContent = 'Ранг ещё не открыт';
+          return true;
+        }
+        if (entry.action === 'open_rank') {
+          guildQuestRank = entry.rank;
+          guildQuestView = 'list';
+          shopFocus = 0;
+          return true;
+        }
+        if (entry.action === 'back_ranks') {
+          guildQuestView = 'ranks';
+          shopFocus = 0;
+          return true;
+        }
+        tryAcceptOrCompleteQuest(entry);
+        return true;
+      }
+      if (rpgUi === 'levelup') {
+        levelUpFocus = row.index;
+        applyLevelUpChoice();
+        return true;
+      }
+      if (rpgUi === 'skills') {
+        townPlayer.activeSkill = row.index;
+        return true;
+      }
+      if (rpgUi === 'rank') {
+        rpgUi = null;
+        return true;
+      }
+    }
+    // клик по затемнению / панели — закрыть rank
+    if (rpgUi === 'rank') {
+      rpgUi = null;
+      return true;
+    }
+    return false;
   }
 
   function updateCity() {
@@ -4982,6 +5185,8 @@
       drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId, p.walking ? p.anim : null);
       drawHpBar();
       drawDayNightOverlay();
+      // кнопки поверх затемнения ночи — иначе не видно и «не кликается»
+      if (!rpgUi) drawHouseUiButtons();
       drawRpgPanels();
       return;
     }
@@ -5130,7 +5335,6 @@
   let guildWelcomeLine = 0;
   let guildQuestView = 'ranks'; // ranks | list
   let guildQuestRank = 'E';
-  let stealBtnBox = null;
   let houseStolenIds = {};
 
   function rankIndex(r) {
@@ -5742,13 +5946,8 @@
       return;
     }
     if (!nearTownBuilding) return;
-    const sp = nearTownBuilding.special;
-    if (sp === 'guild') openShop('guild');
-    else if (sp === 'weapons') openShop('weapons');
-    else if (sp === 'potions') openShop('potions');
-    else if (sp === 'flowers') openShop('flowers');
-    else if (sp === 'tavern') openShop('tavern');
-    else enterHouseInterior(nearTownBuilding);
+    // любой домик — сначала комната с кнопками мышью
+    enterHouseInterior(nearTownBuilding);
   }
 
   function starterLoadout(classId) {
@@ -6140,6 +6339,7 @@
 
   function drawRpgPanels() {
     if (!rpgUi || !townPlayer) return;
+    menuHitBoxes = [];
     ctx.fillStyle = 'rgba(8, 10, 22, 0.72)';
     ctx.fillRect(0, 0, W, H);
 
@@ -6186,6 +6386,7 @@
 
     if (rpgUi === 'guild_quests') {
       const list = getGuildQuestListUi();
+      menuHitBoxes = [];
       ctx.fillStyle = '#1a2035';
       ctx.fillRect(120, 30, 560, 390);
       ctx.strokeStyle = '#ffd54f';
@@ -6201,10 +6402,13 @@
       let y = 90;
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
-        const sel = i === shopFocus;
-        ctx.fillStyle = it.locked ? '#263238' : (sel ? '#5d4037' : '#37474f');
+        menuHitBoxes.push({ x: 150, y: y, w: 500, h: 36, index: i });
+        const hovered = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
+        const sel = i === shopFocus || hovered;
+        ctx.fillStyle = it.locked ? '#263238' : (hovered ? '#ff8f00' : (sel ? '#5d4037' : '#37474f'));
         ctx.fillRect(150, y, 500, 36);
-        ctx.strokeStyle = sel ? '#ffd54f' : '#546e7a';
+        ctx.strokeStyle = sel ? '#fff59d' : '#546e7a';
+        ctx.lineWidth = hovered ? 3 : 1;
         ctx.strokeRect(150, y, 500, 36);
         ctx.fillStyle = it.locked ? '#78909c' : '#fff';
         ctx.font = 'bold 13px Segoe UI, Arial';
@@ -6218,13 +6422,26 @@
       ctx.fillStyle = '#90a4ae';
       ctx.font = '12px Segoe UI, Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('↑↓ · Enter выбрать · Esc назад', W / 2, 405);
+      ctx.fillText('Наведи — выделить · ЛКМ — выбрать', W / 2, 380);
+      menuHitBoxes.push({ x: 330, y: 388, w: 140, h: 28, index: -1, action: 'close' });
+      const closeH = uiHover && uiHover.kind === 'menu' && uiHover.index === menuHitBoxes.length - 1;
+      ctx.fillStyle = closeH ? '#ef5350' : '#c62828';
+      ctx.fillRect(330, 388, 140, 28);
+      ctx.strokeStyle = closeH ? '#fff' : '#ef9a9a';
+      ctx.lineWidth = closeH ? 3 : 2;
+      ctx.strokeRect(330, 388, 140, 28);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 13px Segoe UI, Arial';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Закрыть', W / 2, 402);
+      ctx.textBaseline = 'alphabetic';
       return;
     }
 
     if (rpgUi === 'shop') {
       const titles = { guild: 'Гильдия — сдача добычи', weapons: 'Оружейная', potions: 'Магазин зелий', tavern: 'Таверна', flowers: 'Цветочный магазин' };
       const list = getShopList();
+      menuHitBoxes = [];
       ctx.fillStyle = '#1a2035';
       ctx.fillRect(150, 45, 500, 360);
       ctx.strokeStyle = '#80cbc4';
@@ -6240,10 +6457,13 @@
       let y = 130;
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
-        const sel = i === shopFocus;
-        ctx.fillStyle = sel ? '#00695c' : '#263238';
+        menuHitBoxes.push({ x: 175, y: y, w: 450, h: 42, index: i });
+        const hovered = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
+        const sel = i === shopFocus || hovered;
+        ctx.fillStyle = sel ? (hovered ? '#00897b' : '#00695c') : '#263238';
         ctx.fillRect(175, y, 450, 42);
         ctx.strokeStyle = sel ? '#fff59d' : '#546e7a';
+        ctx.lineWidth = hovered ? 3 : 1;
         ctx.strokeRect(175, y, 450, 42);
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 14px Segoe UI, Arial';
@@ -6255,13 +6475,26 @@
         y += 48;
       }
       ctx.fillStyle = '#b0bec5';
-      ctx.font = '13px Segoe UI, Arial';
+      ctx.font = '12px Segoe UI, Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('↑↓  ·  Enter купить/сдать  ·  E/Esc выйти', W / 2, 385);
+      ctx.fillText('Наведи — выделить · ЛКМ — выбрать', W / 2, 348);
+      menuHitBoxes.push({ x: 330, y: 358, w: 140, h: 32, index: -1, action: 'close' });
+      const closeHover = uiHover && uiHover.kind === 'menu' && uiHover.index === menuHitBoxes.length - 1;
+      ctx.fillStyle = closeHover ? '#ef5350' : '#c62828';
+      ctx.fillRect(330, 358, 140, 32);
+      ctx.strokeStyle = closeHover ? '#fff' : '#ef9a9a';
+      ctx.lineWidth = closeHover ? 3 : 2;
+      ctx.strokeRect(330, 358, 140, 32);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px Segoe UI, Arial';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Закрыть', W / 2, 374);
+      ctx.textBaseline = 'alphabetic';
       return;
     }
 
     if (rpgUi === 'levelup') {
+      menuHitBoxes = [];
       ctx.fillStyle = '#1a2035';
       ctx.fillRect(160, 50, 480, 350);
       ctx.strokeStyle = '#f7d44a';
@@ -6277,10 +6510,13 @@
       let y = 150;
       for (let i = 0; i < levelUpChoices.length; i++) {
         const ch = levelUpChoices[i];
-        const sel = i === levelUpFocus;
-        ctx.fillStyle = sel ? '#3949ab' : '#263238';
+        menuHitBoxes.push({ x: 190, y: y, w: 420, h: 48, index: i });
+        const hovered = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
+        const sel = i === levelUpFocus || hovered;
+        ctx.fillStyle = hovered ? '#5c6bc0' : (sel ? '#3949ab' : '#263238');
         ctx.fillRect(190, y, 420, 48);
         ctx.strokeStyle = sel ? '#fff59d' : '#546e7a';
+        ctx.lineWidth = hovered ? 3 : 1;
         ctx.strokeRect(190, y, 420, 48);
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 15px Segoe UI, Arial';
@@ -6294,11 +6530,12 @@
       ctx.fillStyle = '#b0bec5';
       ctx.font = '13px Segoe UI, Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('↑↓ выбор  ·  Enter подтвердить', W / 2, 380);
+      ctx.fillText('Наведи — выделить · ЛКМ — выбрать', W / 2, 380);
       return;
     }
 
     if (rpgUi === 'skills') {
+      menuHitBoxes = [];
       ctx.fillStyle = '#1a2035';
       ctx.fillRect(180, 40, 440, 370);
       ctx.strokeStyle = '#f7d44a';
@@ -6323,10 +6560,15 @@
       let y = 160;
       for (let i = 0; i < townPlayer.skills.length; i++) {
         const s = townPlayer.skills[i];
-        const sel = i === (townPlayer.activeSkill || 0);
+        menuHitBoxes.push({ x: 210, y: y - 16, w: 380, h: 48, index: i });
+        const hovered = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
+        const sel = i === (townPlayer.activeSkill || 0) || hovered;
         if (sel) {
-          ctx.fillStyle = 'rgba(57,73,171,0.55)';
+          ctx.fillStyle = hovered ? 'rgba(255, 193, 7, 0.35)' : 'rgba(57,73,171,0.55)';
           ctx.fillRect(210, y - 16, 380, 48);
+          ctx.strokeStyle = hovered ? '#fff59d' : 'rgba(255,255,255,0.25)';
+          ctx.lineWidth = hovered ? 3 : 1;
+          ctx.strokeRect(210, y - 16, 380, 48);
         }
         ctx.fillStyle = sel ? '#fff59d' : '#fff';
         ctx.fillText((i + 1) + '. ' + s.name + '  —  ур. ' + s.level + (sel ? '  ◀' : ''), 230, y);
@@ -6341,7 +6583,7 @@
       ctx.fillStyle = '#b0bec5';
       ctx.font = '13px Segoe UI, Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('↑↓ активный навык  ·  X/Esc — закрыть', W / 2, 390);
+      ctx.fillText('Наведи — выделить · ЛКМ — выбрать · X/Esc — закрыть', W / 2, 390);
       return;
     }
 
@@ -6369,19 +6611,21 @@
       { key: 'potion', x: 230, y: 220, label: 'Зелье' }
     ];
     const sw = 56, sh = 56;
-    for (let s of slotLayout) {
+    for (let si = 0; si < slotLayout.length; si++) {
+      const s = slotLayout[si];
       gearSlotBoxes.push({ key: s.key, x: s.x, y: s.y, w: sw, h: sh });
+      const slotHovered = uiHover && uiHover.kind === 'slot' && uiHover.index === si;
       // хрустальное окошко
       const g = ctx.createLinearGradient(s.x, s.y, s.x + sw, s.y + sh);
-      g.addColorStop(0, 'rgba(200, 235, 255, 0.35)');
-      g.addColorStop(0.5, 'rgba(120, 170, 220, 0.18)');
-      g.addColorStop(1, 'rgba(80, 120, 180, 0.28)');
+      g.addColorStop(0, slotHovered ? 'rgba(255, 235, 150, 0.55)' : 'rgba(200, 235, 255, 0.35)');
+      g.addColorStop(0.5, slotHovered ? 'rgba(255, 193, 7, 0.35)' : 'rgba(120, 170, 220, 0.18)');
+      g.addColorStop(1, slotHovered ? 'rgba(255, 160, 0, 0.4)' : 'rgba(80, 120, 180, 0.28)');
       ctx.fillStyle = g;
       ctx.fillRect(s.x, s.y, sw, sh);
-      ctx.strokeStyle = 'rgba(230, 250, 255, 0.85)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = slotHovered ? '#fff59d' : 'rgba(230, 250, 255, 0.85)';
+      ctx.lineWidth = slotHovered ? 3 : 2;
       ctx.strokeRect(s.x + 0.5, s.y + 0.5, sw - 1, sh - 1);
-      ctx.strokeStyle = 'rgba(100, 160, 220, 0.6)';
+      ctx.strokeStyle = slotHovered ? '#ffd54f' : 'rgba(100, 160, 220, 0.6)';
       ctx.strokeRect(s.x + 3, s.y + 3, sw - 6, sh - 6);
       // блик
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
@@ -6415,7 +6659,9 @@
 
     ctx.fillStyle = 'rgba(30, 40, 60, 0.85)';
     ctx.fillRect(bagDropZone.x, bagDropZone.y, bagDropZone.w, bagDropZone.h);
-    ctx.strokeStyle = 'rgba(180, 210, 255, 0.5)';
+    const bagDropHover = uiHover && uiHover.kind === 'bagdrop';
+    ctx.strokeStyle = bagDropHover ? '#fff59d' : 'rgba(180, 210, 255, 0.5)';
+    ctx.lineWidth = bagDropHover ? 3 : 1;
     ctx.strokeRect(bagDropZone.x, bagDropZone.y, bagDropZone.w, bagDropZone.h);
     ctx.fillStyle = '#ffe082';
     ctx.font = 'bold 14px Segoe UI, Arial';
@@ -6441,16 +6687,20 @@
     for (let i = 0; i < townPlayer.bag.length; i++) {
       const it = townPlayer.bag[i];
       const bx = 355, boxY = by - 14, boxW = 350, boxH = 32;
+      let bagBoxIdx = -1;
       // кликабельны только видимые строки
       if (boxY + boxH > bagListTop && boxY < bagListBottom) {
+        bagBoxIdx = bagItemBoxes.length;
         bagItemBoxes.push({ index: i, x: bx, y: boxY, w: boxW, h: boxH });
       }
+      const bagHovered = bagBoxIdx >= 0 && uiHover && uiHover.kind === 'bag' && uiHover.index === bagBoxIdx;
       const g2 = ctx.createLinearGradient(bx, boxY, bx, boxY + boxH);
-      g2.addColorStop(0, 'rgba(180, 210, 240, 0.25)');
-      g2.addColorStop(1, 'rgba(60, 90, 130, 0.35)');
+      g2.addColorStop(0, bagHovered ? 'rgba(255, 224, 130, 0.55)' : 'rgba(180, 210, 240, 0.25)');
+      g2.addColorStop(1, bagHovered ? 'rgba(255, 160, 0, 0.45)' : 'rgba(60, 90, 130, 0.35)');
       ctx.fillStyle = g2;
       ctx.fillRect(bx, boxY, boxW, boxH);
-      ctx.strokeStyle = 'rgba(220, 240, 255, 0.7)';
+      ctx.strokeStyle = bagHovered ? '#fff59d' : 'rgba(220, 240, 255, 0.7)';
+      ctx.lineWidth = bagHovered ? 3 : 1;
       ctx.strokeRect(bx, boxY, boxW, boxH);
       ctx.fillStyle = '#fff';
       ctx.font = '13px Segoe UI, Arial';
@@ -6492,7 +6742,7 @@
     ctx.fillStyle = '#b0bec5';
     ctx.font = '12px Segoe UI, Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Мышь: перетащи · колесико — мешок · двойной клик по записке · C — зелье · Z/Esc', W / 2, 400);
+    ctx.fillText('Мышь: перетащи вещи · колесико — мешок · двойной клик по записке · Esc', W / 2, 400);
     drawNoteOverlay();
   }
 
@@ -7305,9 +7555,11 @@
     const p = canvasPos(ev);
     mousePos.x = p.x;
     mousePos.y = p.y;
-    if (!invDrag) return;
-    invDrag.mx = p.x;
-    invDrag.my = p.y;
+    if (invDrag) {
+      invDrag.mx = p.x;
+      invDrag.my = p.y;
+    }
+    updateUiHover(p.x, p.y);
   });
 
   canvas.addEventListener('mousedown', ev => {
@@ -7319,65 +7571,84 @@
     const p = canvasPos(ev);
     mousePos.x = p.x;
     mousePos.y = p.y;
+    if (paused || ev.button !== 0) return;
+
+    // 1) кнопки внутри дома (гильдия / магазины) — в приоритете
+    if (insideHouse && !rpgUi && handleHouseUiClick(p.x, p.y)) {
+      ev.preventDefault();
+      return;
+    }
+
+    // 2) меню магазина / заданий / левелапа
+    if (rpgUi && rpgUi !== 'gear') {
+      if (rpgUi === 'guild_welcome') {
+        guildWelcomeLine++;
+        if (guildWelcomeLine >= GUILD_WELCOME_LINES.length) rpgUi = null;
+        ev.preventDefault();
+        return;
+      }
+      if (handleMenuUiClick(p.x, p.y)) {
+        ev.preventDefault();
+        return;
+      }
+      // клик мимо строк, но по панели — не бить
+      ev.preventDefault();
+      return;
+    }
+
+    // 3) инвентарь — перетаскивание
+    if (rpgUi === 'gear' && townPlayer) {
+      for (let b of bagItemBoxes) {
+        if (hitBox(p.x, p.y, b)) {
+          const it = townPlayer.bag[b.index];
+          if (it && it.noteText) {
+            ev.preventDefault();
+            return;
+          }
+          invDrag = {
+            item: it,
+            fromBagIndex: b.index,
+            fromSlotKey: null,
+            mx: p.x,
+            my: p.y
+          };
+          ev.preventDefault();
+          return;
+        }
+      }
+      for (let s of gearSlotBoxes) {
+        if (hitBox(p.x, p.y, s) && townPlayer.slots[s.key]) {
+          invDrag = {
+            item: townPlayer.slots[s.key],
+            fromBagIndex: null,
+            fromSlotKey: s.key,
+            mx: p.x,
+            my: p.y
+          };
+          ev.preventDefault();
+          return;
+        }
+      }
+      ev.preventDefault();
+      return;
+    }
 
     const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
       gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
       gameState === STATE.GUILD_DUNGEON;
-    if (inRpg && townPlayer && !rpgUi && !paused && ev.button === 0) {
-      if (insideHouse && stealBtnBox && hitBox(p.x, p.y, stealBtnBox)) {
-        tryStealHouse();
-        ev.preventDefault();
-        return;
-      }
+    if (inRpg && townPlayer && !rpgUi && !insideHouse) {
       doTownPunch();
       ev.preventDefault();
-      return;
-    }
-
-    if (rpgUi === 'guild_welcome') {
-      guildWelcomeLine++;
-      if (guildWelcomeLine >= GUILD_WELCOME_LINES.length) rpgUi = null;
-      ev.preventDefault();
-      return;
-    }
-
-    if (rpgUi !== 'gear' || !townPlayer) return;
-    for (let b of bagItemBoxes) {
-      if (hitBox(p.x, p.y, b)) {
-        const it = townPlayer.bag[b.index];
-        // записку не таскаем сразу — читают двойным кликом; остальные можно тащить
-        if (it && it.noteText) {
-          ev.preventDefault();
-          return;
-        }
-        invDrag = {
-          item: it,
-          fromBagIndex: b.index,
-          fromSlotKey: null,
-          mx: p.x,
-          my: p.y
-        };
-        ev.preventDefault();
-        return;
-      }
-    }
-    for (let s of gearSlotBoxes) {
-      if (hitBox(p.x, p.y, s) && townPlayer.slots[s.key]) {
-        invDrag = {
-          item: townPlayer.slots[s.key],
-          fromBagIndex: null,
-          fromSlotKey: s.key,
-          mx: p.x,
-          my: p.y
-        };
-        ev.preventDefault();
-        return;
-      }
     }
   });
 
   canvas.addEventListener('mouseup', ev => {
-    if (!invDrag || !townPlayer) { invDrag = null; return; }
+    if (!invDrag || !townPlayer) {
+      invDrag = null;
+      const p = canvasPos(ev);
+      updateUiHover(p.x, p.y);
+      return;
+    }
     const p = canvasPos(ev);
     let dropped = false;
     for (let s of gearSlotBoxes) {
@@ -7392,9 +7663,14 @@
       dropped = true;
     }
     invDrag = null;
+    updateUiHover(p.x, p.y);
   });
 
-  canvas.addEventListener('mouseleave', () => { invDrag = null; });
+  canvas.addEventListener('mouseleave', () => {
+    invDrag = null;
+    uiHover = null;
+    canvas.style.cursor = 'default';
+  });
 
   document.querySelectorAll('.class-card').forEach(btn => {
     btn.addEventListener('click', () => applyClassChoice(btn.getAttribute('data-class')));
