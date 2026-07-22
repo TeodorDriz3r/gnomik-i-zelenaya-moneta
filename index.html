@@ -312,7 +312,7 @@
     <button id="restartBtnAdv">🔄 Заново</button>
   </div>
   <div class="controls" id="controlsHint">
-    <kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок
+    <kbd>WASD</kbd>/<kbd>стрелки</kbd> – ход &nbsp;|&nbsp; в Марио: <kbd>A/D</kbd> + <kbd>W</kbd>/<kbd>Пробел</kbd> прыжок
   </div>
   <div id="message"></div>
 </div>
@@ -355,8 +355,88 @@
     ArrowRight: false,
     ArrowUp: false,
     ArrowDown: false,
-    Space: false
+    Space: false,
+    Shift: false,
+    KeyQ: false
   };
+
+  let mousePos = { x: 400, y: 225 };
+  let townPunchCd = 0;
+
+  function applyMoveKeys(e, isDown) {
+    const k = e.key;
+    const code = e.code;
+    let handled = false;
+    if (k === 'ArrowLeft' || code === 'KeyA' || k === 'a' || k === 'A' || k === 'ф' || k === 'Ф') {
+      keys.ArrowLeft = isDown; handled = true;
+    }
+    if (k === 'ArrowRight' || code === 'KeyD' || k === 'd' || k === 'D' || k === 'в' || k === 'В') {
+      keys.ArrowRight = isDown; handled = true;
+    }
+    if (k === 'ArrowUp' || code === 'KeyW' || k === 'w' || k === 'W' || k === 'ц' || k === 'Ц') {
+      keys.ArrowUp = isDown; handled = true;
+    }
+    if (k === 'ArrowDown' || code === 'KeyS' || k === 's' || k === 'S' || k === 'ы' || k === 'Ы') {
+      keys.ArrowDown = isDown; handled = true;
+    }
+    if (k === ' ' || code === 'Space') {
+      keys.Space = isDown; handled = true;
+    }
+    if (code === 'ShiftLeft' || code === 'ShiftRight' || k === 'Shift') {
+      keys.Shift = isDown; handled = true;
+    }
+    if (code === 'KeyQ' || k === 'q' || k === 'Q' || k === 'й' || k === 'Й') {
+      keys.KeyQ = isDown; handled = true;
+    }
+    if (handled) e.preventDefault();
+    return handled;
+  }
+
+  function hasSprintBoots() {
+    return getSpeedBonus() > 0;
+  }
+
+  function aimTownAt(tx, ty) {
+    const p = townPlayer;
+    if (!p) return { dx: 1, dy: 0 };
+    const cx = p.x + p.w / 2;
+    const cy = p.y + p.h / 2;
+    let dx = tx - cx;
+    let dy = ty - cy;
+    const len = Math.hypot(dx, dy);
+    if (len < 2) {
+      dx = p.facing || 1;
+      dy = 0;
+    } else {
+      dx /= len;
+      dy /= len;
+    }
+    p.dirX = dx;
+    p.dirY = dy;
+    if (Math.abs(dx) >= Math.abs(dy)) p.facing = dx < 0 ? -1 : 1;
+    return { dx, dy };
+  }
+
+  function doTownPunch() {
+    if (!townPlayer || rpgUi || townPunchCd > 0 || paused) return;
+    const { dx, dy } = aimTownAt(mousePos.x, mousePos.y);
+    townPunchCd = 16;
+    const dmg = Math.max(1, 1 + getWeaponDamage());
+    const cx = townPlayer.x + townPlayer.w / 2;
+    const cy = townPlayer.y + townPlayer.h / 2;
+    townProjectiles.push({
+      kind: 'slash',
+      x: cx + dx * 16,
+      y: cy + dy * 16,
+      vx: 0, vy: 0,
+      r: 18,
+      damage: dmg,
+      life: 10,
+      color: '#ffcc80',
+      dirX: dx,
+      dirY: dy
+    });
+  }
 
   function rand(min, max) { return Math.random() * (max - min) + min; }
   function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
@@ -381,7 +461,8 @@
     HUB: 11,
     SLIMES: 12,
     DUNGEON: 13,
-    GATHER: 14
+    GATHER: 14,
+    GUILD_DUNGEON: 15
   };
 
   let gameState = STATE.MENU;
@@ -1616,7 +1697,7 @@
     levelSpan.textContent = 'Марио';
     messageDiv.textContent = 'Спаси принцессу!';
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок';
+      '<kbd>A/D</kbd> или <kbd>←→</kbd> – ход &nbsp;|&nbsp; <kbd>W</kbd>/<kbd>↑</kbd>/<kbd>Пробел</kbd> – прыжок';
     setTimeout(() => {
       if (messageDiv.textContent === 'Спаси принцессу!') messageDiv.textContent = '';
     }, 2000);
@@ -2612,7 +2693,8 @@
   function isAdventureState() {
     return gameState === STATE.CITY || gameState === STATE.CITY_INTRO ||
       gameState === STATE.CLASS_SELECT || gameState === STATE.HUB ||
-      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER;
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+      gameState === STATE.GUILD_DUNGEON;
   }
 
   function loseLife(msg) {
@@ -2654,6 +2736,7 @@
     if (gameState === STATE.SLIMES) { updateSlimesZone(); return; }
     if (gameState === STATE.DUNGEON) { updateDungeon(); return; }
     if (gameState === STATE.GATHER) { updateGather(); return; }
+    if (gameState === STATE.GUILD_DUNGEON) { updateGuildDungeon(); return; }
 
     if (gameState === STATE.MAIN) {
       if (!player.alive) {
@@ -2879,7 +2962,7 @@
       levelSpan.textContent = 'Марио';
       messageDiv.textContent = 'Бомбермен пройден! Возврат...';
       document.getElementById('controlsHint').innerHTML =
-        '<kbd>←</kbd> <kbd>→</kbd> – движение &nbsp;|&nbsp; <kbd>↑</kbd> или <kbd>Пробел</kbd> – прыжок';
+        '<kbd>A/D</kbd> или <kbd>←→</kbd> – ход &nbsp;|&nbsp; <kbd>W</kbd>/<kbd>↑</kbd>/<kbd>Пробел</kbd> – прыжок';
       const allCollected = coinObjects.every(c => c.collected || c.isGreen);
       if (allCollected && !dragon) {
         startBossFight();
@@ -3029,6 +3112,7 @@
     if (gameState === STATE.SLIMES) { drawSlimesZone(); return; }
     if (gameState === STATE.DUNGEON) { drawDungeon(); return; }
     if (gameState === STATE.GATHER) { drawGather(); return; }
+    if (gameState === STATE.GUILD_DUNGEON) { drawGuildDungeon(); return; }
 
     if (gameState === STATE.MAIN || gameState === STATE.BOSS) {
       drawMain();
@@ -3375,6 +3459,7 @@
   let dungeonLevel = 1;
   let dungeonChest = null;
   let dungeonCleared = false;
+  let insideHouse = null; // { building, outX, outY }
   let invulnTimer = 0;
   let townNpcs = [];
 
@@ -3397,7 +3482,8 @@
       dayNight.phaseStart = Date.now();
       const inWorld = gameState === STATE.MAIN || gameState === STATE.BOSS ||
         gameState === STATE.CITY || gameState === STATE.HUB ||
-        gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER;
+        gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+      gameState === STATE.GUILD_DUNGEON;
       if (inWorld) {
         messageDiv.textContent = dayNight.isNight ? 'Наступила ночь...' : 'Наступил день!';
         setTimeout(() => {
@@ -3512,6 +3598,10 @@
     readingNote = null;
     dungeonChest = null;
     dungeonCleared = false;
+    insideHouse = null;
+    houseStolenIds = {};
+    guildDungeonBoss = null;
+    guildDungeonPhase = 'mobs';
     resetDayNight();
     if (classOverlay) classOverlay.classList.remove('visible');
   }
@@ -3631,6 +3721,7 @@
       bag: load.bag,
       skills: def.skills.map(s => Object.assign({}, s)),
       anim: 0,
+      walking: false,
       hp: 10,
       maxHp: 10,
       level: 1,
@@ -3643,24 +3734,26 @@
       mana: def.id === 'mage' ? 1 : 0,
       maxMana: def.id === 'mage' ? 1 : 0,
       baseSpeed: 2.4,
-      slowTimer: 0
+      slowTimer: 0,
+      guildRank: 'E',
+      completedQuests: {},
+      activeGuildQuest: null,
+      hubVisited: false
     };
     townProjectiles = [];
     townSkillCd = 0;
-    rpgUi = null;
+    rpgUi = 'guild_welcome';
+    guildWelcomeLine = 0;
     pendingLevelUps = 0;
     levelUpChoices = [];
     cityIntroDone = true;
     gameState = STATE.CITY;
     setAdventureHud(true);
     levelSpan.textContent = 'Город · ' + def.title;
-    if (advLevelSpan) advLevelSpan.textContent = def.title + ' · Lv.1';
-    messageDiv.textContent = 'Класс выбран! В мешке: штаны и бутылка';
+    if (advLevelSpan) advLevelSpan.textContent = def.title + ' · Lv.1 · ранг E';
+    messageDiv.textContent = '';
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>←↑→↓</kbd> &nbsp;|&nbsp; <kbd>E</kbd> магазин &nbsp;|&nbsp; <kbd>Z</kbd> инвентарь &nbsp;|&nbsp; <kbd>C</kbd> зелье &nbsp;|&nbsp; <kbd>Пробел</kbd> навык';
-    setTimeout(() => {
-      if (messageDiv.textContent.startsWith('Класс')) messageDiv.textContent = '';
-    }, 2800);
+      '<kbd>WASD</kbd> ход · <kbd>ЛКМ</kbd> удар · <kbd>Q</kbd> навык · <kbd>Shift</kbd> зелье · <kbd>C</kbd> ранг · <kbd>E</kbd> · <kbd>Z</kbd>/<kbd>X</kbd>';
     updateUI();
   }
 
@@ -3682,10 +3775,149 @@
     return false;
   }
 
+  function houseSolidAt(nx, ny, nw, nh) {
+    // стены комнаты
+    if (nx < 90 || ny < 70 || nx + nw > W - 90 || ny + nh > H - 50) return true;
+    return false;
+  }
+
+  function enterHouseInterior(b) {
+    if (!townPlayer || !b) return;
+    insideHouse = {
+      building: b,
+      outX: townPlayer.x,
+      outY: townPlayer.y
+    };
+    townPlayer.x = 400 - townPlayer.w / 2;
+    townPlayer.y = 300;
+    townProjectiles = [];
+    nearTownBuilding = null;
+    messageDiv.textContent = b.name + ' · [E] выйти на улицу';
+  }
+
+  function exitHouseInterior() {
+    if (!insideHouse || !townPlayer) return;
+    const b = insideHouse.building;
+    townPlayer.x = insideHouse.outX;
+    townPlayer.y = insideHouse.outY;
+    // чуть ниже двери
+    if (b) {
+      townPlayer.x = b.x + b.w / 2 - townPlayer.w / 2;
+      townPlayer.y = b.y + b.h + 4;
+    }
+    insideHouse = null;
+    messageDiv.textContent = '';
+  }
+
+  function drawHouseInterior() {
+    const b = insideHouse && insideHouse.building;
+    const wall = (b && b.color) || '#a1887f';
+    const floor = (b && b.accent) || '#efebe9';
+    const roof = (b && b.roof) || '#5d4037';
+
+    ctx.fillStyle = '#2c1810';
+    ctx.fillRect(0, 0, W, H);
+    // стены
+    ctx.fillStyle = wall;
+    ctx.fillRect(70, 50, W - 140, H - 90);
+    // пол
+    ctx.fillStyle = floor;
+    ctx.fillRect(100, 100, W - 200, H - 160);
+    // ковёр
+    ctx.fillStyle = 'rgba(198, 40, 40, 0.35)';
+    ctx.fillRect(280, 180, 240, 140);
+    // окно
+    ctx.fillStyle = '#81d4fa';
+    ctx.fillRect(150, 120, 70, 50);
+    ctx.fillRect(W - 220, 120, 70, 50);
+    ctx.strokeStyle = roof;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(150, 120, 70, 50);
+    ctx.strokeRect(W - 220, 120, 70, 50);
+    ctx.beginPath();
+    ctx.moveTo(185, 120); ctx.lineTo(185, 170);
+    ctx.moveTo(150, 145); ctx.lineTo(220, 145);
+    ctx.moveTo(W - 185, 120); ctx.lineTo(W - 185, 170);
+    ctx.moveTo(W - 220, 145); ctx.lineTo(W - 150, 145);
+    ctx.stroke();
+    // стол
+    ctx.fillStyle = '#6d4c41';
+    ctx.fillRect(360, 200, 80, 50);
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(368, 250, 10, 28);
+    ctx.fillRect(422, 250, 10, 28);
+    // дверь снизу
+    ctx.fillStyle = '#4e342e';
+    ctx.fillRect(370, H - 70, 60, 30);
+    ctx.fillStyle = '#ffd54f';
+    ctx.beginPath();
+    ctx.arc(420, H - 55, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fff8e1';
+    ctx.font = 'bold 18px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b ? b.name : 'Дом', W / 2, 78);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.fillText('Дверь внизу · [E] выйти', W / 2, H - 20);
+
+    stealBtnBox = null;
+    if (hasStealSkill()) {
+      const stolen = !!(insideHouse.stolen || (b && houseStolenIds[b.id]));
+      stealBtnBox = { x: W / 2 - 70, y: 95, w: 140, h: 34 };
+      ctx.fillStyle = stolen ? '#455a64' : '#6a1b9a';
+      ctx.fillRect(stealBtnBox.x, stealBtnBox.y, stealBtnBox.w, stealBtnBox.h);
+      ctx.strokeStyle = '#ce93d8';
+      ctx.strokeRect(stealBtnBox.x, stealBtnBox.y, stealBtnBox.w, stealBtnBox.h);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(stolen ? 'Уже обокраден' : 'Кража', W / 2, 117);
+    }
+  }
+
   function updateCity() {
     if (!townPlayer) return;
     const p = townPlayer;
-    p.anim += 0.15;
+    p.walking = false;
+
+    // внутри дома
+    if (insideHouse) {
+      if (!rpgUi) {
+        let dx = 0, dy = 0;
+        if (keys.ArrowLeft) dx -= 1;
+        if (keys.ArrowRight) dx += 1;
+        if (keys.ArrowUp) dy -= 1;
+        if (keys.ArrowDown) dy += 1;
+        if (dx || dy) {
+          const len = Math.hypot(dx, dy) || 1;
+          p.dirX = dx / len;
+          p.dirY = dy / len;
+          if (Math.abs(dx) >= Math.abs(dy)) p.facing = dx < 0 ? -1 : 1;
+          const spd = getMoveSpeed();
+          const mx = p.dirX * spd;
+          const my = p.dirY * spd;
+          let moved = false;
+          if (!houseSolidAt(p.x + mx, p.y, p.w, p.h)) { p.x += mx; moved = true; }
+          if (!houseSolidAt(p.x, p.y + my, p.w, p.h)) { p.y += my; moved = true; }
+          if (moved) {
+            p.walking = true;
+            p.anim += 0.35;
+          }
+        }
+        if (p.slowTimer > 0) p.slowTimer--;
+        if (townSkillCd > 0) townSkillCd--;
+        if (townPunchCd > 0) townPunchCd--;
+      }
+      // выход дверью вниз
+      if (p.y + p.h > H - 55 && p.x + p.w / 2 > 360 && p.x + p.w / 2 < 440) {
+        exitHouseInterior();
+      }
+      regenMana();
+      return;
+    }
+
     if (!rpgUi) {
       let dx = 0, dy = 0;
       if (keys.ArrowLeft) dx -= 1;
@@ -3700,17 +3932,19 @@
         const spd = getMoveSpeed();
         const mx = p.dirX * spd;
         const my = p.dirY * spd;
-        if (!townSolidAt(p.x + mx, p.y, p.w, p.h)) p.x += mx;
-        if (!townSolidAt(p.x, p.y + my, p.w, p.h)) p.y += my;
+        let moved = false;
+        if (!townSolidAt(p.x + mx, p.y, p.w, p.h)) { p.x += mx; moved = true; }
+        if (!townSolidAt(p.x, p.y + my, p.w, p.h)) { p.y += my; moved = true; }
+        if (moved) {
+          p.walking = true;
+          p.anim += 0.35;
+        }
       }
 
       if (p.slowTimer > 0) p.slowTimer--;
 
       if (townSkillCd > 0) townSkillCd--;
-      if (keys.Space && townSkillCd <= 0) {
-        keys.Space = false;
-        castTownSkill();
-      }
+      if (townPunchCd > 0) townPunchCd--;
     }
 
     for (let i = townProjectiles.length - 1; i >= 0; i--) {
@@ -3739,25 +3973,36 @@
       if (Math.hypot(cx - bx, cy - by) < 36) { nearTownBuilding = b; break; }
     }
     if (nearTownBuilding && !messageDiv.textContent.startsWith('Получено') && !rpgUi) {
-      let tip = nearTownBuilding.name + (nearTownBuilding.id ? ' (№' + nearTownBuilding.id + ')' : '');
-      if (nearTownBuilding.special === 'guild' || nearTownBuilding.special === 'weapons' ||
-          nearTownBuilding.special === 'potions' || nearTownBuilding.special === 'tavern') {
-        tip += '  ·  [E] войти';
+      let tip = nearTownBuilding.name;
+      if (!nearTownBuilding.special && nearTownBuilding.id) {
+        tip += ' (№' + nearTownBuilding.id + ')';
       }
+      tip += '  ·  [E] войти';
       messageDiv.textContent = tip;
-    } else if (!rpgUi && !messageDiv.textContent.startsWith('Получено') && messageDiv.textContent.indexOf('№') !== -1) {
-      messageDiv.textContent = '';
+    } else if (!nearTownBuilding && !rpgUi && !messageDiv.textContent.startsWith('Получено')) {
+      const t = messageDiv.textContent;
+      if (t.indexOf('№') !== -1 || t.indexOf('[E] войти') !== -1 ||
+          t === 'Гильдия' || t === 'Цветы' || t === 'Оружейная' || t === 'Зелья' || t === 'Таверна') {
+        messageDiv.textContent = '';
+      }
     }
 
     regenMana();
     updateTownNpcs();
   }
 
-  function castTownSkill() {
+  function castTownSkill(skillIndex) {
     const p = townPlayer;
-    if (!p || !p.skills.length) return;
-    const sk = p.skills[p.activeSkill || 0] || p.skills[0];
+    if (!p || !p.skills.length || rpgUi) return;
+    const idx = skillIndex != null ? skillIndex : (p.activeSkill || 0);
+    const sk = p.skills[idx] || p.skills[0];
+    if (!sk) return;
+    aimTownAt(mousePos.x, mousePos.y);
     const kind = sk.kind || sk.id;
+    if (kind === 'steal') {
+      messageDiv.textContent = 'Кража: зайди в обычный дом и нажми «Кража»';
+      return;
+    }
     // мана только у мага
     if (p.classId === 'mage') {
       const cost = 1;
@@ -4082,17 +4327,19 @@
       ctx.fill();
     }
 
-    // табличка / номер
-    ctx.fillStyle = highlight ? '#fffde7' : 'rgba(255,255,255,0.9)';
-    ctx.fillRect(b.x + b.w / 2 - 10, bodyY + bodyH / 2 - 2, 20, 16);
-    ctx.strokeStyle = '#5d4037';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(b.x + b.w / 2 - 10, bodyY + bodyH / 2 - 2, 20, 16);
-    ctx.fillStyle = '#3e2723';
-    ctx.font = 'bold 11px Segoe UI, Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(b.id), b.x + b.w / 2, bodyY + bodyH / 2 + 6);
+    // табличка / номер — только у домов без подписи и функции
+    if (!b.special) {
+      ctx.fillStyle = highlight ? '#fffde7' : 'rgba(255,255,255,0.9)';
+      ctx.fillRect(b.x + b.w / 2 - 10, bodyY + bodyH / 2 - 2, 20, 16);
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(b.x + b.w / 2 - 10, bodyY + bodyH / 2 - 2, 20, 16);
+      ctx.fillStyle = '#3e2723';
+      ctx.font = 'bold 11px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(b.id), b.x + b.w / 2, bodyY + bodyH / 2 + 6);
+    }
 
     if (b.special === 'guild') {
       ctx.fillStyle = '#ffe082';
@@ -4473,14 +4720,21 @@
     }
   }
 
-  function drawTownGnome(x, y, facing, classId) {
+  function drawTownGnome(x, y, facing, classId, walkPhase) {
     ctx.save();
-    ctx.translate(x, y);
+    const walking = walkPhase != null && walkPhase !== false;
+    const phase = typeof walkPhase === 'number' ? walkPhase : 0;
+    const leg = walking ? Math.sin(phase) * 4.5 : 0;
+    const bob = walking ? Math.abs(Math.sin(phase)) * 1.1 : 0;
+    ctx.translate(x, y - bob);
     ctx.scale(facing || 1, 1);
-    // ноги
+    // ноги — шаг при ходьбе
     ctx.fillStyle = '#3e2723';
-    ctx.fillRect(-6, 8, 5, 8);
-    ctx.fillRect(1, 8, 5, 8);
+    ctx.fillRect(-6 + leg * 0.35, 8 + Math.max(0, -leg) * 0.12, 5, 8);
+    ctx.fillRect(1 - leg * 0.35, 8 + Math.max(0, leg) * 0.12, 5, 8);
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(-7 + leg * 0.35, 14, 6, 3);
+    ctx.fillRect(0 - leg * 0.35, 14, 6, 3);
     // тело / шапка
     ctx.fillStyle = '#d44c4c';
     ctx.beginPath();
@@ -4721,12 +4975,23 @@
   }
 
   function drawCity() {
+    if (insideHouse) {
+      drawHouseInterior();
+      if (!townPlayer) return;
+      const p = townPlayer;
+      drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId, p.walking ? p.anim : null);
+      drawHpBar();
+      drawDayNightOverlay();
+      drawRpgPanels();
+      return;
+    }
+
     drawTownMap({});
     ensureTownNpcs();
     for (let n of townNpcs) drawTownNpc(n);
     if (!townPlayer) return;
     const p = townPlayer;
-    drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId);
+    drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId, p.walking ? p.anim : null);
 
     for (let pr of townProjectiles) {
       if (pr.kind === 'orb') {
@@ -4847,6 +5112,442 @@
     { name: 'Зелье маны', slot: 'potion', heal: 0, mana: 15, priceSilver: 1, desc: '+15 маны' }
   ];
 
+  const FLOWER_SHOP = [
+    { name: 'Ромашки', slot: 'quest', priceGold: 1000, desc: 'Обычные цветы' },
+    { name: 'Красивые розы', slot: 'quest', priceGold: 10000, desc: 'Элегантный букет' },
+    { name: 'Большой букет роз', slot: 'quest', priceGold: 100000, desc: 'Роскошный огромный букет' }
+  ];
+
+  // ============================================================
+  //  Гильдия: ранги, задания, кража, данж гоблинов
+  // ============================================================
+  const GUILD_RANKS = ['E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS'];
+  const GUILD_WELCOME_LINES = [
+    'Мы зарегистрировали вас в гильдии.',
+    'Ваш изначальный ранг E.',
+    'Удачных путешествий!'
+  ];
+  let guildWelcomeLine = 0;
+  let guildQuestView = 'ranks'; // ranks | list
+  let guildQuestRank = 'E';
+  let stealBtnBox = null;
+  let houseStolenIds = {};
+
+  function rankIndex(r) {
+    const i = GUILD_RANKS.indexOf(r);
+    return i < 0 ? 0 : i;
+  }
+
+  function playerRankUnlocked(rankLetter) {
+    if (!townPlayer) return false;
+    return rankIndex(townPlayer.guildRank) >= rankIndex(rankLetter);
+  }
+
+  function hasStealSkill() {
+    if (!townPlayer || !townPlayer.skills) return false;
+    return townPlayer.skills.some(s => s.id === 'steal' || s.kind === 'steal');
+  }
+
+  function grantStealSkill() {
+    if (!townPlayer || hasStealSkill()) return false;
+    townPlayer.skills.push({
+      id: 'steal',
+      name: 'Кража',
+      level: 1,
+      damage: 0,
+      kind: 'steal',
+      color: '#78909c',
+      desc: 'Взлом обычных домов · кнопка в доме'
+    });
+    return true;
+  }
+
+  function getGuildQuestsForRank(rank) {
+    const next = GUILD_RANKS[rankIndex(rank) + 1];
+    const list = [];
+    if (rank === 'E') {
+      list.push({
+        id: 'e_meet_hub',
+        name: 'Первый выход',
+        desc: 'Выйди на поляну через ворота и вернись',
+        type: 'flag',
+        flag: 'hubVisited',
+        rewardSilver: 2
+      });
+    }
+    if (rank === 'A') {
+      list.push({
+        id: 'a_goblin_clear',
+        name: 'Зачисти подземелье гоблинов',
+        desc: 'Убей всех гоблинов и финального босса',
+        type: 'dungeon',
+        dungeon: 'goblins',
+        rewardSilver: 25
+      });
+    }
+    if (next) {
+      list.push({
+        id: 'rankup_' + rank + '_to_' + next,
+        name: 'Повышение ранга → ' + next,
+        desc: 'Экзамен гильдии на ранг ' + next,
+        type: 'rankup',
+        nextRank: next,
+        requireQuest: rank === 'E' ? 'e_meet_hub' : (rank === 'A' ? 'a_goblin_clear' : null),
+        rewardSilver: 5
+      });
+    } else {
+      list.push({
+        id: 'sss_legend',
+        name: 'Легенда гильдии',
+        desc: 'Вы на вершине. Новые подвиги — позже',
+        type: 'info'
+      });
+    }
+    // заглушки под будущий сюжет
+    if (rank !== 'A' && rank !== 'E' && next) {
+      list.unshift({
+        id: rank.toLowerCase() + '_story_wip',
+        name: 'Задание ранга ' + rank + ' (скоро)',
+        desc: 'Сюжет и карта появятся позже',
+        type: 'info'
+      });
+    }
+    return list;
+  }
+
+  function isQuestDone(id) {
+    return !!(townPlayer && townPlayer.completedQuests && townPlayer.completedQuests[id]);
+  }
+
+  function markQuestDone(id) {
+    if (!townPlayer) return;
+    if (!townPlayer.completedQuests) townPlayer.completedQuests = {};
+    townPlayer.completedQuests[id] = true;
+  }
+
+  function openGuildQuestsMenu() {
+    shopKind = null;
+    guildQuestView = 'ranks';
+    guildQuestRank = townPlayer.guildRank || 'E';
+    shopFocus = 0;
+    rpgUi = 'guild_quests';
+  }
+
+  function getGuildQuestListUi() {
+    if (guildQuestView === 'ranks') {
+      return GUILD_RANKS.map(r => ({
+        name: 'Задание ранга ' + r,
+        action: 'open_rank',
+        rank: r,
+        desc: playerRankUnlocked(r) ? 'Открыто' : 'Закрыто · нужен ранг ' + r,
+        locked: !playerRankUnlocked(r)
+      }));
+    }
+    const quests = getGuildQuestsForRank(guildQuestRank);
+    const rows = quests.map(q => {
+      const done = isQuestDone(q.id);
+      let desc = q.desc;
+      if (done) desc = '✓ Выполнено · ' + desc;
+      else if (q.type === 'dungeon' && townPlayer.activeGuildQuest && townPlayer.activeGuildQuest.id === q.id) {
+        desc = 'Взято · иди на поляну → данж заданий';
+      }
+      return {
+        name: q.name,
+        action: 'quest_' + q.type,
+        quest: q,
+        desc: desc,
+        locked: false,
+        done: done
+      };
+    });
+    rows.push({ name: '← Назад к рангам', action: 'back_ranks', desc: '' });
+    return rows;
+  }
+
+  function tryAcceptOrCompleteQuest(entry) {
+    const q = entry.quest;
+    if (!q || !townPlayer) return;
+    if (entry.done || isQuestDone(q.id)) {
+      messageDiv.textContent = 'Задание уже выполнено';
+      return;
+    }
+    if (q.type === 'info') {
+      messageDiv.textContent = q.desc;
+      return;
+    }
+    if (q.type === 'flag') {
+      if (q.flag === 'hubVisited' && townPlayer.hubVisited) {
+        markQuestDone(q.id);
+        addMoney(0, q.rewardSilver || 0, 0);
+        messageDiv.textContent = 'Задание сдано! +' + (q.rewardSilver || 0) + '⚪';
+      } else {
+        messageDiv.textContent = 'Сначала выйди на поляну через ворота';
+      }
+      return;
+    }
+    if (q.type === 'dungeon') {
+      townPlayer.activeGuildQuest = { id: q.id, rank: guildQuestRank, dungeon: q.dungeon, name: q.name };
+      messageDiv.textContent = 'Задание взято! На поляне справа — «данж для заданий гильдии»';
+      return;
+    }
+    if (q.type === 'rankup') {
+      if (q.requireQuest && !isQuestDone(q.requireQuest)) {
+        messageDiv.textContent = 'Сначала выполни основное задание этого ранга';
+        return;
+      }
+      // для промежуточных рангов без сюжета — экзамен сразу
+      if (!q.requireQuest && rankIndex(townPlayer.guildRank) === rankIndex(guildQuestRank)) {
+        // ok
+      } else if (rankIndex(townPlayer.guildRank) !== rankIndex(guildQuestRank)) {
+        messageDiv.textContent = 'Повышение только с текущего ранга';
+        return;
+      }
+      markQuestDone(q.id);
+      townPlayer.guildRank = q.nextRank;
+      addMoney(0, q.rewardSilver || 0, 0);
+      if (advLevelSpan) {
+        const def = CLASS_DEFS[townPlayer.classId];
+        advLevelSpan.textContent = (def ? def.title : '') + ' · Lv.' + townPlayer.level + ' · ранг ' + townPlayer.guildRank;
+      }
+      messageDiv.textContent = 'Ранг повышен до ' + q.nextRank + '!';
+      return;
+    }
+  }
+
+  function rollStealLoot() {
+    // заглушка: средний / дорогой лут — цены и состав позже
+    if (Math.random() < 0.55) {
+      const mid = [
+        makeItem('steal_mid_potion_' + frame, 'Среднее зелье (кража)', 'potion', {
+          heal: 10, itemLevel: 2, desc: 'Средний лут · из дома'
+        }),
+        makeItem('steal_mid_silver_' + frame, 'Кошелёк серебра', 'quest', {
+          desc: 'Средний лут · +5⚪ при «использовании» в мешке пока как трофей', sellSilver: 5
+        }),
+        makeItem('steal_mid_ring_' + frame, 'Простое кольцо', 'quest', {
+          desc: 'Средний лут · трофей', sellSilver: 8
+        })
+      ];
+      return mid[randInt(0, mid.length - 1)];
+    }
+    const rich = [
+      makeItem('steal_rich_blade_' + frame, 'Украденный клинок', 'weapon', {
+        damage: 3, itemLevel: 3, desc: 'Дорогой лут · 3 урона'
+      }),
+      makeItem('steal_rich_boots_' + frame, 'Сапоги вельможи', 'boots', {
+        armor: 2, itemLevel: 3, desc: 'Дорогой лут · +2 броня'
+      }),
+      makeItem('steal_rich_gold_' + frame, 'Мешочек золота', 'quest', {
+        desc: 'Дорогой лут · трофей', sellSilver: 50
+      })
+    ];
+    return rich[randInt(0, rich.length - 1)];
+  }
+
+  function tryStealHouse() {
+    if (!insideHouse || !townPlayer || !hasStealSkill()) return;
+    const b = insideHouse.building;
+    const id = b.id;
+    if (houseStolenIds[id] || insideHouse.stolen) {
+      messageDiv.textContent = 'Здесь уже всё вынесли';
+      return;
+    }
+    insideHouse.stolen = true;
+    houseStolenIds[id] = true;
+    const loot = rollStealLoot();
+    townPlayer.bag.push(loot);
+    messageDiv.textContent = 'Кража удалась: ' + loot.name;
+    setTimeout(() => {
+      if (messageDiv.textContent.indexOf('Кража') === 0) messageDiv.textContent = '';
+    }, 2000);
+  }
+
+  function isGuildQuestDungeonUnlocked() {
+    return !!(townPlayer && townPlayer.activeGuildQuest && townPlayer.activeGuildQuest.dungeon);
+  }
+
+  let guildDungeonBoss = null;
+  let guildDungeonPhase = 'mobs'; // mobs | boss | done
+
+  function startGuildQuestDungeon() {
+    if (!isGuildQuestDungeonUnlocked()) {
+      messageDiv.textContent = 'Сначала возьми задание в гильдии';
+      return;
+    }
+    closeRpgUi();
+    gameState = STATE.GUILD_DUNGEON;
+    guildDungeonPhase = 'mobs';
+    guildDungeonBoss = null;
+    levelSpan.textContent = 'Задание · гоблины';
+    townPlayer.x = 80;
+    townPlayer.y = 225;
+    townProjectiles = [];
+    fieldDrops = [];
+    invulnTimer = 40;
+    fieldSlimes = [];
+    for (let i = 0; i < 6; i++) {
+      fieldSlimes.push({
+        x: 180 + (i % 3) * 160,
+        y: 100 + Math.floor(i / 3) * 140,
+        w: 24, h: 28, r: 14,
+        hp: 6, maxHp: 6,
+        alive: true,
+        speed: 1.05,
+        atkCd: 0,
+        bob: 0,
+        kind: 'goblin',
+        goblin: true
+      });
+    }
+    messageDiv.textContent = 'Зачисти гоблинов, затем появится босс';
+  }
+
+  function spawnGoblinBoss() {
+    const plv = (townPlayer && townPlayer.level) || 1;
+    const dmg = Math.max(1, Math.floor(plv * 0.85));
+    guildDungeonBoss = {
+      x: 520, y: 180, w: 56, h: 64, r: 32,
+      hp: 120, maxHp: 120,
+      alive: true,
+      speed: 0.75,
+      atkCd: 0,
+      bob: 0,
+      kind: 'goblin_boss',
+      level: 50,
+      damage: dmg,
+      goblin: true,
+      boss: true
+    };
+    guildDungeonPhase = 'boss';
+    messageDiv.textContent = 'Большой гоблин · ур.50! Урон ≈ ' + dmg;
+  }
+
+  function onGoblinBossDefeated() {
+    if (guildDungeonPhase === 'done') return;
+    guildDungeonPhase = 'done';
+    const qid = townPlayer.activeGuildQuest && townPlayer.activeGuildQuest.id;
+    if (qid) markQuestDone(qid);
+    if (townPlayer.activeGuildQuest) {
+      addMoney(0, 25, 0);
+      townPlayer.activeGuildQuest = null;
+    }
+    let msg = 'Босс повержен! Задание выполнено.';
+    if (Math.random() < 0.15) {
+      if (grantStealSkill()) msg += ' Добыт навык «Кража»!';
+      else msg += ' (навык Кража уже есть)';
+    }
+    messageDiv.textContent = msg;
+  }
+
+  function updateGuildDungeon() {
+    if (invulnTimer > 0) invulnTimer--;
+    regenMana();
+    moveRpgActor(function (nx, ny, nw, nh) {
+      return softBound(nx, ny, nw, nh);
+    });
+    const targets = fieldSlimes.slice();
+    if (guildDungeonBoss && guildDungeonBoss.alive) targets.push(guildDungeonBoss);
+    updateProjectilesAndSkills(targets);
+
+    const p = townPlayer;
+    const pcx = p.x + p.w / 2;
+    const pcy = p.y + p.h / 2;
+
+    for (let s of fieldSlimes) {
+      if (!s.alive) continue;
+      s.bob += 0.1;
+      const dx = pcx - (s.x + s.w / 2);
+      const dy = pcy - (s.y + s.h / 2);
+      const d = Math.hypot(dx, dy) || 1;
+      s.x += (dx / d) * s.speed;
+      s.y += (dy / d) * s.speed;
+      if (s.atkCd > 0) s.atkCd--;
+      if (d < 22 && s.atkCd <= 0) {
+        hurtPlayer(1);
+        s.atkCd = 40;
+      }
+    }
+
+    if (guildDungeonPhase === 'mobs' && !fieldSlimes.some(s => s.alive)) {
+      spawnGoblinBoss();
+    }
+
+    if (guildDungeonBoss && guildDungeonPhase === 'boss') {
+      const b = guildDungeonBoss;
+      if (b.alive) {
+        b.bob += 0.06;
+        const dx = pcx - (b.x + b.w / 2);
+        const dy = pcy - (b.y + b.h / 2);
+        const d = Math.hypot(dx, dy) || 1;
+        b.x += (dx / d) * b.speed;
+        b.y += (dy / d) * b.speed;
+        if (b.atkCd > 0) b.atkCd--;
+        if (d < 36 && b.atkCd <= 0) {
+          hurtPlayer(b.damage);
+          b.atkCd = 50;
+        }
+      }
+      if (!b.alive || b.hp <= 0) {
+        b.alive = false;
+        onGoblinBossDefeated();
+      }
+    }
+
+    if (p.x < 28) enterHub('guild_dungeon');
+  }
+
+  function drawGoblin(s) {
+    const cx = s.x + s.w / 2;
+    const cy = s.y + s.h / 2 + Math.sin(s.bob || 0) * 2;
+    ctx.fillStyle = s.boss ? '#2e7d32' : '#66bb6a';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, s.w / 2, s.h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1b5e20';
+    ctx.beginPath();
+    ctx.arc(cx - s.w * 0.2, cy - 4, 3, 0, Math.PI * 2);
+    ctx.arc(cx + s.w * 0.2, cy - 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // уши
+    ctx.fillStyle = '#43a047';
+    ctx.beginPath();
+    ctx.moveTo(cx - s.w / 2, cy - 4);
+    ctx.lineTo(cx - s.w / 2 - 8, cy - 14);
+    ctx.lineTo(cx - s.w / 2 + 4, cy - 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + s.w / 2, cy - 4);
+    ctx.lineTo(cx + s.w / 2 + 8, cy - 14);
+    ctx.lineTo(cx + s.w / 2 - 4, cy - 2);
+    ctx.fill();
+    if (s.boss) {
+      ctx.fillStyle = '#ffeb3b';
+      ctx.font = 'bold 11px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('БОСС · 50', cx, cy - s.h / 2 - 14);
+    }
+    ctx.fillStyle = '#c62828';
+    ctx.fillRect(s.x, s.y - 10, s.w * (s.hp / s.maxHp), 4);
+  }
+
+  function drawGuildDungeon() {
+    ctx.fillStyle = '#1b5e20';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#33691e';
+    ctx.fillRect(40, 40, W - 80, H - 80);
+    ctx.fillStyle = '#fff';
+    ctx.font = '14px Segoe UI, Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('← поляна   Данж заданий гильдии · гоблины', 50, 28);
+    for (let s of fieldSlimes) if (s.alive) drawGoblin(s);
+    if (guildDungeonBoss && guildDungeonBoss.alive) drawGoblin(guildDungeonBoss);
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawProjectiles();
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
   let shopKind = null;
   let shopFocus = 0;
   let nearTownBuilding = null;
@@ -4916,8 +5617,14 @@
   function getShopList() {
     if (shopKind === 'weapons') return WEAPON_SHOP;
     if (shopKind === 'potions') return POTION_SHOP;
+    if (shopKind === 'flowers') return FLOWER_SHOP;
     if (shopKind === 'guild') {
       return [
+        {
+          name: 'Задания гильдии',
+          action: 'guild_quests',
+          desc: 'Ранги E–SSS · текущий ранг ' + (townPlayer.guildRank || 'E')
+        },
         {
           name: 'Сдать все ядра слизня I',
           action: 'sell_cores',
@@ -4945,6 +5652,11 @@
     const list = getShopList();
     const entry = list[shopFocus];
     if (!entry || !townPlayer) return;
+
+    if (entry.action === 'guild_quests') {
+      openGuildQuestsMenu();
+      return;
+    }
 
     if (entry.action === 'sell_cores') {
       let n = 0;
@@ -5023,12 +5735,20 @@
   }
 
   function tryInteractBuilding() {
-    if (!nearTownBuilding || rpgUi) return;
+    if (rpgUi) return;
+    // внутри дома — выйти
+    if (insideHouse) {
+      exitHouseInterior();
+      return;
+    }
+    if (!nearTownBuilding) return;
     const sp = nearTownBuilding.special;
     if (sp === 'guild') openShop('guild');
     else if (sp === 'weapons') openShop('weapons');
     else if (sp === 'potions') openShop('potions');
+    else if (sp === 'flowers') openShop('flowers');
     else if (sp === 'tavern') openShop('tavern');
+    else enterHouseInterior(nearTownBuilding);
   }
 
   function starterLoadout(classId) {
@@ -5088,6 +5808,8 @@
     const p = townPlayer;
     if (!p) return 2.4;
     let spd = (p.baseSpeed || p.speed || 2.4) + getSpeedBonus();
+    // Пробел — ускорение, если надеты ботинки со скоростью (скороходы и т.п.)
+    if (keys.Space && hasSprintBoots()) spd *= 1.55;
     if (p.slowTimer > 0) spd *= (p.slowFactor || 0.55);
     return spd;
   }
@@ -5266,6 +5988,69 @@
   function handleRpgUiKeys(e) {
     if (!rpgUi) return false;
 
+    if (rpgUi === 'guild_welcome') {
+      if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        guildWelcomeLine++;
+        if (guildWelcomeLine >= GUILD_WELCOME_LINES.length) {
+          rpgUi = null;
+          messageDiv.textContent = 'Ранг E · [C] посмотреть';
+          setTimeout(() => {
+            if (messageDiv.textContent.indexOf('Ранг E') === 0) messageDiv.textContent = '';
+          }, 2500);
+        }
+        return true;
+      }
+      return true;
+    }
+
+    if (rpgUi === 'guild_quests') {
+      const list = getGuildQuestListUi();
+      if (e.key === 'ArrowUp') {
+        shopFocus = (shopFocus + list.length - 1) % Math.max(1, list.length);
+        return true;
+      }
+      if (e.key === 'ArrowDown') {
+        shopFocus = (shopFocus + 1) % Math.max(1, list.length);
+        return true;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const entry = list[shopFocus];
+        if (!entry) return true;
+        if (entry.locked) {
+          messageDiv.textContent = 'Ранг ещё не открыт';
+          return true;
+        }
+        if (entry.action === 'open_rank') {
+          guildQuestRank = entry.rank;
+          guildQuestView = 'list';
+          shopFocus = 0;
+          return true;
+        }
+        if (entry.action === 'back_ranks') {
+          guildQuestView = 'ranks';
+          shopFocus = 0;
+          return true;
+        }
+        tryAcceptOrCompleteQuest(entry);
+        return true;
+      }
+      if (e.key === 'Escape' || e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
+        rpgUi = null;
+        return true;
+      }
+      return true;
+    }
+
+    if (rpgUi === 'rank') {
+      if (e.key === 'Escape' || e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') {
+        rpgUi = null;
+        return true;
+      }
+      return true;
+    }
+
     if (rpgUi === 'shop') {
       const list = getShopList();
       if (e.key === 'ArrowUp') {
@@ -5358,8 +6143,87 @@
     ctx.fillStyle = 'rgba(8, 10, 22, 0.72)';
     ctx.fillRect(0, 0, W, H);
 
+    if (rpgUi === 'guild_welcome') {
+      ctx.fillStyle = '#1a2035';
+      ctx.fillRect(140, 100, 520, 240);
+      ctx.strokeStyle = '#80cbc4';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(140, 100, 520, 240);
+      drawGuildAdmin(W / 2, 160);
+      ctx.fillStyle = '#ffe082';
+      ctx.font = 'bold 18px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Администратор гильдии', W / 2, 250);
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px Segoe UI, Arial';
+      ctx.fillText(GUILD_WELCOME_LINES[guildWelcomeLine] || '', W / 2, 290);
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.fillText('Пробел / Enter — далее', W / 2, 320);
+      return;
+    }
+
+    if (rpgUi === 'rank') {
+      ctx.fillStyle = '#1a2035';
+      ctx.fillRect(220, 120, 360, 200);
+      ctx.strokeStyle = '#ffd54f';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(220, 120, 360, 200);
+      ctx.fillStyle = '#ffd54f';
+      ctx.font = 'bold 22px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Ранг гильдии', W / 2, 160);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 64px Georgia, serif';
+      ctx.fillText(townPlayer.guildRank || 'E', W / 2, 240);
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '13px Segoe UI, Arial';
+      const aq = townPlayer.activeGuildQuest;
+      ctx.fillText(aq ? ('Задание: ' + aq.name) : 'Нет активного задания', W / 2, 280);
+      ctx.fillText('C / Esc — закрыть', W / 2, 300);
+      return;
+    }
+
+    if (rpgUi === 'guild_quests') {
+      const list = getGuildQuestListUi();
+      ctx.fillStyle = '#1a2035';
+      ctx.fillRect(120, 30, 560, 390);
+      ctx.strokeStyle = '#ffd54f';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(120, 30, 560, 390);
+      ctx.fillStyle = '#ffd54f';
+      ctx.font = 'bold 20px Georgia, serif';
+      ctx.textAlign = 'center';
+      const title = guildQuestView === 'ranks'
+        ? 'Задания гильдии · ваш ранг ' + (townPlayer.guildRank || 'E')
+        : 'Ранг ' + guildQuestRank;
+      ctx.fillText(title, W / 2, 62);
+      let y = 90;
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const sel = i === shopFocus;
+        ctx.fillStyle = it.locked ? '#263238' : (sel ? '#5d4037' : '#37474f');
+        ctx.fillRect(150, y, 500, 36);
+        ctx.strokeStyle = sel ? '#ffd54f' : '#546e7a';
+        ctx.strokeRect(150, y, 500, 36);
+        ctx.fillStyle = it.locked ? '#78909c' : '#fff';
+        ctx.font = 'bold 13px Segoe UI, Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(it.name, 165, y + 15);
+        ctx.fillStyle = '#b0bec5';
+        ctx.font = '11px Segoe UI, Arial';
+        ctx.fillText(it.desc || '', 165, y + 30);
+        y += 40;
+      }
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑↓ · Enter выбрать · Esc назад', W / 2, 405);
+      return;
+    }
+
     if (rpgUi === 'shop') {
-      const titles = { guild: 'Гильдия — сдача добычи', weapons: 'Оружейная', potions: 'Магазин зелий', tavern: 'Таверна' };
+      const titles = { guild: 'Гильдия — сдача добычи', weapons: 'Оружейная', potions: 'Магазин зелий', tavern: 'Таверна', flowers: 'Цветочный магазин' };
       const list = getShopList();
       ctx.fillStyle = '#1a2035';
       ctx.fillRect(150, 45, 500, 360);
@@ -5634,8 +6498,9 @@
 
   function moveRpgActor(solidFn) {
     const p = townPlayer;
-    if (!p || rpgUi) return;
+    if (!p || rpgUi) { if (p) p.walking = false; return; }
     if (p.slowTimer > 0) p.slowTimer--;
+    p.walking = false;
     let dx = 0, dy = 0;
     if (keys.ArrowLeft) dx -= 1;
     if (keys.ArrowRight) dx += 1;
@@ -5649,17 +6514,19 @@
       const spd = getMoveSpeed();
       const mx = p.dirX * spd;
       const my = p.dirY * spd;
-      if (!solidFn(p.x + mx, p.y, p.w, p.h)) p.x += mx;
-      if (!solidFn(p.x, p.y + my, p.w, p.h)) p.y += my;
+      let moved = false;
+      if (!solidFn(p.x + mx, p.y, p.w, p.h)) { p.x += mx; moved = true; }
+      if (!solidFn(p.x, p.y + my, p.w, p.h)) { p.y += my; moved = true; }
+      if (moved) {
+        p.walking = true;
+        p.anim = (p.anim || 0) + 0.35;
+      }
     }
   }
 
   function updateProjectilesAndSkills(hitTargets) {
     if (townSkillCd > 0) townSkillCd--;
-    if (!rpgUi && keys.Space && townSkillCd <= 0) {
-      keys.Space = false;
-      castTownSkill();
-    }
+    if (townPunchCd > 0) townPunchCd--;
     for (let i = townProjectiles.length - 1; i >= 0; i--) {
       const pr = townProjectiles[i];
       pr.x += pr.vx;
@@ -5675,8 +6542,10 @@
             hit = true;
             if (t.hp <= 0) {
               t.alive = false;
-              gainXp(t.kind === 'dungeon' ? 2 : 1);
-              if (t.kind !== 'dungeon') {
+              if (t.boss) gainXp(8);
+              else if (t.goblin) gainXp(2);
+              else gainXp(t.kind === 'dungeon' ? 2 : 1);
+              if (!t.goblin && t.kind !== 'dungeon') {
                 dropSlimeCore(t.x + (t.w || 0) / 2, t.y + (t.h || 0) / 2);
               }
             }
@@ -5788,10 +6657,12 @@
 
   function enterHub(from) {
     if (rpgUi !== 'levelup') closeRpgUi();
+    insideHouse = null;
+    if (townPlayer) townPlayer.hubVisited = true;
     gameState = STATE.HUB;
     levelSpan.textContent = 'Поляна';
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>←↑→↓</kbd> путь &nbsp;|&nbsp; <kbd>Z</kbd> амуниция &nbsp;|&nbsp; <kbd>X</kbd> навыки &nbsp;|&nbsp; <kbd>Пробел</kbd> навык';
+      '<kbd>WASD</kbd> путь · <kbd>ЛКМ</kbd> удар · <kbd>Q</kbd> навык · <kbd>Shift</kbd> зелье · <kbd>Пробел</kbd> бег (скороходы) · <kbd>Z</kbd>/<kbd>X</kbd>';
     townPlayer.x = 400;
     townPlayer.y = from === 'city' ? 80 : 225;
     if (from === 'slimes') townPlayer.y = 300;
@@ -5812,7 +6683,7 @@
     townPlayer.y = 370;
     townProjectiles = [];
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>←↑→↓</kbd> &nbsp;|&nbsp; <kbd>E</kbd> магазин &nbsp;|&nbsp; <kbd>Z</kbd>/<kbd>X</kbd> &nbsp;|&nbsp; <kbd>Пробел</kbd> навык';
+      '<kbd>WASD</kbd> · <kbd>ЛКМ</kbd> удар · <kbd>Q</kbd> навык · <kbd>Shift</kbd> зелье · <kbd>Пробел</kbd> бег · <kbd>E</kbd> · <kbd>Z</kbd>/<kbd>X</kbd>';
     updateUI();
   }
 
@@ -5825,7 +6696,7 @@
     townPlayer.y = 120;
     messageDiv.textContent = 'Гильдия искателей приключений · [E] сдать ядра';
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>←↑→↓</kbd> &nbsp;|&nbsp; <kbd>E</kbd> гильдия/магазины &nbsp;|&nbsp; <kbd>Z</kbd>/<kbd>X</kbd>';
+      '<kbd>WASD</kbd> · <kbd>ЛКМ</kbd> удар · <kbd>Q</kbd> навык · <kbd>Shift</kbd> зелье · <kbd>Пробел</kbd> бег · <kbd>E</kbd> · <kbd>Z</kbd>/<kbd>X</kbd>';
     updateUI();
   }
 
@@ -6000,7 +6871,7 @@
       { x: 560, y: 300, kind: 'herb', name: 'Цветок', taken: false },
       { x: 250, y: 350, kind: 'wood', name: 'Кора', taken: false }
     ];
-    messageDiv.textContent = 'Подойди и нажми Пробел — собрать';
+    messageDiv.textContent = 'Подойди и нажми E — собрать';
   }
 
   function softBound(nx, ny, nw, nh) {
@@ -6013,7 +6884,15 @@
     const p = townPlayer;
     if (p.y < 28) enterGuildFromHub();
     else if (p.y > H - 40) startSlimes();
-    else if (p.x > W - 40) startDungeon();
+    else if (p.x > W - 40) {
+      if (p.y > 270) {
+        if (isGuildQuestDungeonUnlocked()) startGuildQuestDungeon();
+        else {
+          messageDiv.textContent = 'Данж заданий закрыт — возьми задание в гильдии';
+          p.x = W - 50;
+        }
+      } else startDungeon();
+    }
     else if (p.x < 28) startGather();
   }
 
@@ -6027,28 +6906,33 @@
     ctx.fillStyle = '#c4a574';
     ctx.fillRect(385, 0, 30, H);
     ctx.fillRect(0, 210, W, 30);
+    // тропа к данжу заданий (справа внизу)
+    ctx.fillRect(700, 270, 100, 24);
+    ctx.fillRect(700, 210, 24, 84);
     // указатели
     function sign(x, y, text, col) {
       ctx.fillStyle = '#5d4037';
       ctx.fillRect(x - 3, y, 6, 40);
       ctx.fillStyle = col;
-      ctx.fillRect(x - 50, y - 28, 100, 32);
+      ctx.fillRect(x - 70, y - 28, 140, 32);
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 12px Segoe UI, Arial';
+      ctx.font = 'bold 11px Segoe UI, Arial';
       ctx.textAlign = 'center';
       ctx.fillText(text, x, y - 8);
     }
     sign(400, 50, '↑ Гильдия', '#5c6bc0');
     sign(400, 380, '↓ Монстры', '#c62828');
-    sign(720, 210, '→ Данж', '#6a1b9a');
+    sign(720, 200, '→ Данж', '#6a1b9a');
     sign(80, 210, '← Сбор', '#2e7d32');
+    const unlocked = isGuildQuestDungeonUnlocked();
+    sign(720, 340, unlocked ? '→ Данж заданий' : '→ Данж заданий 🔒', unlocked ? '#ef6c00' : '#546e7a');
 
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.font = '16px Segoe UI, Arial';
     ctx.textAlign = 'center';
     ctx.fillText('Поляна у города — выбери сторону', W / 2, 30);
 
-    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
     drawHpBar();
     drawDayNightOverlay();
     drawRpgPanels();
@@ -6137,7 +7021,7 @@
     ctx.fillText('↑ назад на поляну', W / 2, 24);
     for (let s of fieldSlimes) drawSlime(s);
     drawFieldDrops();
-    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
     drawProjectiles();
     drawHpBar();
     drawDayNightOverlay();
@@ -6221,33 +7105,36 @@
     }
     drawDungeonChest();
     for (let s of fieldSlimes) drawSlime(s);
-    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
     drawProjectiles();
     drawHpBar();
     drawDayNightOverlay();
     drawRpgPanels();
   }
 
+  function tryGatherNode() {
+    if (!townPlayer || gameState !== STATE.GATHER) return;
+    const p = townPlayer;
+    for (let n of fieldNodes) {
+      if (n.taken) continue;
+      if (Math.hypot(p.x + p.w / 2 - n.x, p.y + p.h / 2 - n.y) < 28) {
+        n.taken = true;
+        townPlayer.bag.push(makeItem(
+          'res_' + n.kind + '_' + frame,
+          n.name + ' (ресурс)',
+          'quest',
+          { desc: 'Для заданий / крафта' }
+        ));
+        messageDiv.textContent = 'Собрано: ' + n.name;
+        return true;
+      }
+    }
+    return false;
+  }
+
   function updateGather() {
     moveRpgActor(softBound);
     const p = townPlayer;
-    if (keys.Space) {
-      keys.Space = false;
-      for (let n of fieldNodes) {
-        if (n.taken) continue;
-        if (Math.hypot(p.x + p.w / 2 - n.x, p.y + p.h / 2 - n.y) < 28) {
-          n.taken = true;
-          townPlayer.bag.push(makeItem(
-            'res_' + n.kind + '_' + frame,
-            n.name + ' (ресурс)',
-            'quest',
-            { desc: 'Для заданий / крафта' }
-          ));
-          messageDiv.textContent = 'Собрано: ' + n.name;
-          break;
-        }
-      }
-    }
     if (p.x > W - 30) enterHub('gather');
   }
 
@@ -6271,7 +7158,7 @@
       ctx.textAlign = 'center';
       ctx.fillText(n.name, n.x, n.y + 22);
     }
-    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId);
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
     drawHpBar();
     drawDayNightOverlay();
     drawRpgPanels();
@@ -6285,7 +7172,8 @@
 
   document.addEventListener('keydown', e => {
     const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
-      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER;
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+      gameState === STATE.GUILD_DUNGEON;
 
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -6325,33 +7213,39 @@
       if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
         e.preventDefault();
         if (gameState === STATE.DUNGEON) tryOpenDungeonChest();
+        else if (gameState === STATE.GATHER) tryGatherNode();
         else tryInteractBuilding();
         return;
       }
+      // C / С — ранг гильдии
       if (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С') {
+        e.preventDefault();
+        if (rpgUi === 'rank') rpgUi = null;
+        else if (!rpgUi) rpgUi = 'rank';
+        return;
+      }
+      // Shift — зелье
+      if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
         e.preventDefault();
         usePotionSlot();
         return;
       }
+      // Q / Й — второй навык (если один — первый)
+      if (!e.repeat && (e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q' || e.key === 'й' || e.key === 'Й')) {
+        e.preventDefault();
+        if (townSkillCd <= 0) {
+          const idx = townPlayer.skills.length > 1 ? 1 : 0;
+          castTownSkill(idx);
+        }
+        return;
+      }
     }
 
-    if (e.key === ' ' || e.code === 'Space') {
-      e.preventDefault();
-      keys.Space = true;
-    } else if (e.key.startsWith('Arrow')) {
-      e.preventDefault();
-      keys[e.key] = true;
-    }
+    applyMoveKeys(e, true);
   });
   document.addEventListener('keyup', e => {
     if (e.key === 'Escape') return;
-    if (e.key === ' ' || e.code === 'Space') {
-      e.preventDefault();
-      keys.Space = false;
-    } else if (e.key.startsWith('Arrow')) {
-      e.preventDefault();
-      keys[e.key] = false;
-    }
+    applyMoveKeys(e, false);
   });
 
   function restartGame() {
@@ -6407,14 +7301,47 @@
     }
   });
 
+  canvas.addEventListener('mousemove', ev => {
+    const p = canvasPos(ev);
+    mousePos.x = p.x;
+    mousePos.y = p.y;
+    if (!invDrag) return;
+    invDrag.mx = p.x;
+    invDrag.my = p.y;
+  });
+
   canvas.addEventListener('mousedown', ev => {
     if (readingNote) {
       readingNote = null;
       ev.preventDefault();
       return;
     }
-    if (rpgUi !== 'gear' || !townPlayer) return;
     const p = canvasPos(ev);
+    mousePos.x = p.x;
+    mousePos.y = p.y;
+
+    const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+      gameState === STATE.GUILD_DUNGEON;
+    if (inRpg && townPlayer && !rpgUi && !paused && ev.button === 0) {
+      if (insideHouse && stealBtnBox && hitBox(p.x, p.y, stealBtnBox)) {
+        tryStealHouse();
+        ev.preventDefault();
+        return;
+      }
+      doTownPunch();
+      ev.preventDefault();
+      return;
+    }
+
+    if (rpgUi === 'guild_welcome') {
+      guildWelcomeLine++;
+      if (guildWelcomeLine >= GUILD_WELCOME_LINES.length) rpgUi = null;
+      ev.preventDefault();
+      return;
+    }
+
+    if (rpgUi !== 'gear' || !townPlayer) return;
     for (let b of bagItemBoxes) {
       if (hitBox(p.x, p.y, b)) {
         const it = townPlayer.bag[b.index];
@@ -6447,13 +7374,6 @@
         return;
       }
     }
-  });
-
-  canvas.addEventListener('mousemove', ev => {
-    if (!invDrag) return;
-    const p = canvasPos(ev);
-    invDrag.mx = p.x;
-    invDrag.my = p.y;
   });
 
   canvas.addEventListener('mouseup', ev => {
