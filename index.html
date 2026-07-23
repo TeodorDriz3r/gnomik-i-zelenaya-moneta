@@ -609,7 +609,8 @@
     SLIMES: 12,
     DUNGEON: 13,
     GATHER: 14,
-    GUILD_DUNGEON: 15
+    GUILD_DUNGEON: 15,
+    GUILD_GATHER: 16
   };
 
   let gameState = STATE.MENU;
@@ -3010,7 +3011,7 @@
     return gameState === STATE.CITY || gameState === STATE.CITY_INTRO ||
       gameState === STATE.CLASS_SELECT || gameState === STATE.HUB ||
       gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
-      gameState === STATE.GUILD_DUNGEON;
+      gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
   }
 
   function loseLife(msg) {
@@ -3053,6 +3054,7 @@
     if (gameState === STATE.DUNGEON) { updateDungeon(); return; }
     if (gameState === STATE.GATHER) { updateGather(); return; }
     if (gameState === STATE.GUILD_DUNGEON) { updateGuildDungeon(); return; }
+    if (gameState === STATE.GUILD_GATHER) { updateGuildGather(); return; }
 
     if (gameState === STATE.MAIN) {
       if (!player.alive) {
@@ -3430,6 +3432,7 @@
     if (gameState === STATE.DUNGEON) { drawDungeon(); return; }
     if (gameState === STATE.GATHER) { drawGather(); return; }
     if (gameState === STATE.GUILD_DUNGEON) { drawGuildDungeon(); return; }
+    if (gameState === STATE.GUILD_GATHER) { drawGuildGather(); return; }
 
     if (gameState === STATE.MAIN || gameState === STATE.BOSS) {
       drawMain();
@@ -3889,7 +3892,7 @@
       const inWorld = gameState === STATE.MAIN || gameState === STATE.BOSS ||
         gameState === STATE.CITY || gameState === STATE.HUB ||
         gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
-      gameState === STATE.GUILD_DUNGEON;
+        gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
       if (inWorld) {
         messageDiv.textContent = dayNight.isNight ? 'Наступила ночь...' : 'Наступил день!';
         setTimeout(() => {
@@ -4150,8 +4153,8 @@
       skills: def.skills.map(s => Object.assign({}, s)),
       anim: 0,
       walking: false,
-      hp: 10,
-      maxHp: 10,
+      hp: 5,
+      maxHp: 5,
       level: 1,
       xp: 0,
       xpToNext: 10,
@@ -4159,8 +4162,8 @@
       copper: 0,
       silver: 150,
       gold: 0,
-      mana: def.id === 'mage' ? 1 : 0,
-      maxMana: def.id === 'mage' ? 1 : 0,
+      mana: def.id === 'mage' ? 5 : 0,
+      maxMana: def.id === 'mage' ? 5 : 0,
       baseSpeed: 2.4,
       slowTimer: 0,
       guildRank: 'E',
@@ -6700,7 +6703,7 @@
       let desc = q.desc;
       if (done) desc = '✓ Выполнено · ' + desc;
       else if (q.type === 'dungeon' && townPlayer.activeGuildQuest && townPlayer.activeGuildQuest.id === q.id) {
-        desc = 'Взято · иди на поляну → данж заданий';
+        desc = 'Взято · поляна: данж заданий / сбор по заданию';
       }
       return {
         name: q.name,
@@ -6738,7 +6741,7 @@
     }
     if (q.type === 'dungeon') {
       townPlayer.activeGuildQuest = { id: q.id, rank: guildQuestRank, dungeon: q.dungeon, name: q.name };
-      messageDiv.textContent = 'Задание взято! На поляне справа — «данж для заданий гильдии»';
+      messageDiv.textContent = 'Задание взято! На поляне: «данж заданий» и «сбор ресурсов по заданию гильдии»';
       return;
     }
     if (q.type === 'rankup') {
@@ -6828,6 +6831,34 @@
 
   function isGuildQuestDungeonUnlocked() {
     return !!(townPlayer && townPlayer.activeGuildQuest && townPlayer.activeGuildQuest.dungeon);
+  }
+
+  // Та же разблокировка, что у данжа заданий (взятое задание гильдии)
+  function isGuildQuestGatherUnlocked() {
+    return isGuildQuestDungeonUnlocked();
+  }
+
+  function startGuildQuestGather() {
+    if (!isGuildQuestGatherUnlocked()) {
+      messageDiv.textContent = 'Сначала возьми задание в гильдии';
+      return;
+    }
+    closeRpgUi();
+    gameState = STATE.GUILD_GATHER;
+    levelSpan.textContent = 'Сбор · задание гильдии';
+    townPlayer.x = 700;
+    townPlayer.y = 300;
+    townProjectiles = [];
+    clearZoneObstacles();
+    fieldNodes = [
+      { x: 160, y: 140, kind: 'herb', name: 'Трава гильдии', taken: false, guild: true },
+      { x: 300, y: 260, kind: 'wood', name: 'Древесина гильдии', taken: false, guild: true },
+      { x: 450, y: 120, kind: 'ore', name: 'Руда гильдии', taken: false, guild: true },
+      { x: 580, y: 280, kind: 'ore', name: 'Руда гильдии', taken: false, guild: true },
+      { x: 220, y: 340, kind: 'ore', name: 'Руда гильдии', taken: false, guild: true },
+      { x: 520, y: 180, kind: 'herb', name: 'Редкий корень', taken: false, guild: true }
+    ];
+    messageDiv.textContent = 'Сбор ресурсов по заданию гильдии · [E] собрать · → выход';
   }
 
   let guildDungeonBoss = null;
@@ -8405,6 +8436,7 @@
     if (from === 'slimes') townPlayer.y = 300;
     if (from === 'dungeon') townPlayer.x = 300;
     if (from === 'gather') townPlayer.x = 500;
+    if (from === 'guild_gather') townPlayer.x = 120;
     if (from === 'guild') townPlayer.y = 120;
     townProjectiles = [];
     clearZoneObstacles();
@@ -8888,7 +8920,15 @@
         }
       } else startDungeon();
     }
-    else if (p.x < 28) startGather();
+    else if (p.x < 28) {
+      if (p.y > 270) {
+        if (isGuildQuestGatherUnlocked()) startGuildQuestGather();
+        else {
+          messageDiv.textContent = 'Сбор по заданию закрыт — возьми задание в гильдии';
+          p.x = 40;
+        }
+      } else startGather();
+    }
   }
 
   function drawHub() {
@@ -8904,6 +8944,9 @@
     // тропа к данжу заданий (справа внизу)
     ctx.fillRect(700, 270, 100, 24);
     ctx.fillRect(700, 210, 24, 84);
+    // тропа к сбору по заданию гильдии (слева внизу)
+    ctx.fillRect(0, 270, 100, 24);
+    ctx.fillRect(76, 210, 24, 84);
     // указатели
     function sign(x, y, text, col) {
       ctx.fillStyle = '#5d4037';
@@ -8918,9 +8961,19 @@
     sign(400, 50, '↑ Гильдия', '#5c6bc0');
     sign(400, 380, '↓ Монстры', '#c62828');
     sign(720, 200, '→ Данж', '#6a1b9a');
-    sign(80, 210, '← Сбор', '#2e7d32');
+    sign(80, 200, '← Сбор', '#2e7d32');
     const unlocked = isGuildQuestDungeonUnlocked();
     sign(720, 340, unlocked ? '→ Данж заданий' : '→ Данж заданий 🔒', unlocked ? '#ef6c00' : '#546e7a');
+    // длинное название — две строки на табличке
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(80 - 3, 340, 6, 40);
+    ctx.fillStyle = unlocked ? '#00897b' : '#546e7a';
+    ctx.fillRect(80 - 78, 340 - 36, 156, 40);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(unlocked ? '← Сбор ресурсов' : '← Сбор ресурсов 🔒', 80, 340 - 18);
+    ctx.fillText('по заданию гильдии', 80, 340 - 4);
 
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.font = '16px Segoe UI, Arial';
@@ -9113,7 +9166,7 @@
   }
 
   function tryGatherNode() {
-    if (!townPlayer || gameState !== STATE.GATHER) return;
+    if (!townPlayer || (gameState !== STATE.GATHER && gameState !== STATE.GUILD_GATHER)) return;
     const p = townPlayer;
     for (let n of fieldNodes) {
       if (n.taken) continue;
@@ -9121,17 +9174,26 @@
         n.taken = true;
         if (n.kind === 'ore') {
           townPlayer.bag.push(makeItem(
-            'ore_' + frame,
-            'Руда',
+            'ore_' + frame + (n.guild ? '_g' : ''),
+            n.guild ? 'Руда гильдии' : 'Руда',
             'quest',
-            { materialType: 'ore', desc: 'Материал для кузни', sellSilver: 1 }
+            {
+              materialType: 'ore',
+              desc: n.guild ? 'Ресурс по заданию гильдии · для кузни' : 'Материал для кузни',
+              sellSilver: n.guild ? 2 : 1,
+              guildQuest: !!n.guild
+            }
           ));
         } else {
           townPlayer.bag.push(makeItem(
-            'res_' + n.kind + '_' + frame,
-            n.name + ' (ресурс)',
+            'res_' + n.kind + '_' + frame + (n.guild ? '_g' : ''),
+            n.name + (n.guild ? '' : ' (ресурс)'),
             'quest',
-            { desc: 'Для заданий / крафта' }
+            {
+              desc: n.guild ? 'Сбор по заданию гильдии' : 'Для заданий / крафта',
+              sellSilver: n.guild ? 2 : 0,
+              guildQuest: !!n.guild
+            }
           ));
         }
         messageDiv.textContent = 'Собрано: ' + n.name;
@@ -9173,6 +9235,54 @@
     drawRpgPanels();
   }
 
+  function updateGuildGather() {
+    moveRpgActor(softBound);
+    const p = townPlayer;
+    if (p.x > W - 30) enterHub('guild_gather');
+  }
+
+  function drawGuildGather() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#80cbc4');
+    g.addColorStop(1, '#00897b');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    // тропинка
+    ctx.fillStyle = '#c4a574';
+    ctx.fillRect(0, 290, W, 22);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = 'bold 14px Segoe UI, Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('Сбор ресурсов по заданию гильдии', 20, 28);
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText('поляна →', W - 20, 28);
+    ctx.textAlign = 'center';
+    ctx.fillText('[E] собрать ресурс задания', W / 2, 50);
+    for (let n of fieldNodes) {
+      if (n.taken) continue;
+      if (n.kind === 'herb') ctx.fillStyle = '#1b5e20';
+      else if (n.kind === 'wood') ctx.fillStyle = '#4e342e';
+      else ctx.fillStyle = '#455a64';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffd54f';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#fffde7';
+      ctx.font = '11px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.name, n.x, n.y + 26);
+    }
+    drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawHpBar();
+    drawDayNightOverlay();
+    drawRpgPanels();
+  }
+
   function gameLoop() {
     update();
     draw();
@@ -9182,7 +9292,7 @@
   document.addEventListener('keydown', e => {
     const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
       gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
-      gameState === STATE.GUILD_DUNGEON;
+      gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
 
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -9222,7 +9332,7 @@
       if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
         e.preventDefault();
         if (gameState === STATE.DUNGEON) tryOpenDungeonChest();
-        else if (gameState === STATE.GATHER) tryGatherNode();
+        else if (gameState === STATE.GATHER || gameState === STATE.GUILD_GATHER) tryGatherNode();
         else tryInteractBuilding();
         return;
       }
@@ -9434,7 +9544,7 @@
 
     const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
       gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
-      gameState === STATE.GUILD_DUNGEON;
+      gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
     if (inRpg && townPlayer && !rpgUi && !insideHouse) {
       doTownPunch();
       ev.preventDefault();
