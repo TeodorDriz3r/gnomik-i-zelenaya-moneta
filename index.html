@@ -27,75 +27,22 @@
     #gameCanvas {
       display: block;
       margin: 0 auto;
-      width: 800px;
-      max-width: calc(100vw - 48px);
-      height: auto;
-      aspect-ratio: 800 / 450;
-      border-radius: 16px;
+      width: 800px !important;
+      height: 450px !important;
+      max-width: none;
+      border-radius: 0;
       background: #8bb8d4;
       border: 3px solid #3a415a;
-      image-rendering: auto;
-    }
-    canvas {
-      display: block;
-      margin: 0 auto;
-    }
-    .info {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 12px 10px 8px;
-      color: #b5c7e8;
-      font-size: 18px;
-      font-weight: bold;
-    }
-    .info span {
-      background: #181e2e;
-      padding: 4px 16px;
-      border-radius: 40px;
-      border: 1px solid #2f3850;
-    }
-    .controls {
-      margin-top: 10px;
-      color: #8a9bbf;
-      background: #181e2e;
-      padding: 8px 18px;
-      border-radius: 60px;
-      display: inline-block;
-      border: 1px solid #2f3850;
-      font-size: 16px;
-    }
-    .controls kbd {
-      background: #2f3850;
-      color: #fff;
-      padding: 2px 12px;
-      border-radius: 30px;
-      font-weight: bold;
-      margin: 0 4px;
-    }
-    button {
-      background: #3f5a8c;
-      border: none;
-      color: #fff;
-      font-size: 16px;
-      padding: 6px 24px;
-      border-radius: 60px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: 0.2s;
-      margin-left: 15px;
-    }
-    button:hover { background: #5a79b5; transform: scale(1.03); }
-    #message {
-      margin-top: 8px;
-      font-size: 18px;
-      font-weight: bold;
-      color: #f7d44a;
-      height: 26px;
+      /* запрет размытия при масштабе браузера */
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
+      -ms-interpolation-mode: nearest-neighbor;
     }
     .canvas-wrap {
       position: relative;
       display: inline-block;
+      line-height: 0;
     }
     #gameOverOverlay {
       display: none;
@@ -339,17 +286,26 @@
   const ctx = canvas.getContext('2d', { alpha: false });
   const W = 800, H = 450;
 
-  // Чёткий рендер на HiDPI / масштабе Windows
-  function setupHiDPICanvas() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    canvas.width = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+  // Рендер в целочисленный 2×/3× буфер — без дробного DPR (из‑за него мылит)
+  function setupCrispCanvas() {
+    const dpr = Math.max(1, Math.round(window.devicePixelRatio || 1));
+    const scale = Math.max(2, dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    canvas.width = W * scale;
+    canvas.height = H * scale;
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'low';
   }
-  setupHiDPICanvas();
-  window.addEventListener('resize', setupHiDPICanvas);
+  setupCrispCanvas();
+  window.addEventListener('resize', setupCrispCanvas);
+
+  function ensureCrispDraw() {
+    ctx.imageSmoothingEnabled = false;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = 'rgba(0,0,0,0)';
+  }
 
   // Пиксельные курсоры (16×16, увеличены в 2 раза)
   function buildPixelCursor(pixels, hx, hy, scale) {
@@ -714,7 +670,7 @@
     draw(ctx) {
       if (!this.alive) return;
       ctx.save();
-      ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+      ctx.translate(Math.round(this.x + this.w / 2), Math.round(this.y + this.h / 2));
       ctx.scale(this.facing, 1);
 
       const walking = this.onGround && Math.abs(this.vx) > 0.35;
@@ -1057,9 +1013,8 @@
       const rim = gold ? '#0e6655' : '#9a7d0a';
 
       ctx.save();
-      ctx.translate(this.x, this.y + bob);
-      ctx.shadowColor = gold ? '#2ecc71' : '#f1c40f';
-      ctx.shadowBlur = 12;
+      ctx.translate(Math.round(this.x), Math.round(this.y + bob));
+      // без shadowBlur — он даёт мыло по всему кадру
 
       // внешний диск
       const grad = ctx.createLinearGradient(-rx, -ry, rx, ry);
@@ -1070,8 +1025,6 @@
       ctx.beginPath();
       ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
-
       // ободок
       ctx.strokeStyle = rim;
       ctx.lineWidth = 2;
@@ -1125,18 +1078,14 @@
     }
     draw(ctx) {
       if (!this.alive) return;
-      ctx.save();
-      ctx.shadowColor = '#ff6b35';
-      ctx.shadowBlur = 20;
       const grad = ctx.createRadialGradient(this.x, this.y, 2, this.x, this.y, this.r);
       grad.addColorStop(0, '#ffd93d');
       grad.addColorStop(0.7, '#ff6b35');
       grad.addColorStop(1, '#c0392b');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.arc(Math.round(this.x), Math.round(this.y), this.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
     }
   }
 
@@ -1159,18 +1108,14 @@
     }
     draw(ctx) {
       if (!this.alive) return;
-      ctx.save();
-      ctx.shadowColor = '#f1c40f';
-      ctx.shadowBlur = 10;
       ctx.fillStyle = '#ffe566';
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.arc(Math.round(this.x), Math.round(this.y), this.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+      ctx.arc(Math.round(this.x), Math.round(this.y), 2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
     }
   }
 
@@ -3402,6 +3347,7 @@
   }
 
   function draw() {
+    ensureCrispDraw();
     ctx.clearRect(0, 0, W, H);
 
     if (gameState === STATE.MENU) {
@@ -3518,24 +3464,19 @@
     // солнце / луна
     if (night) {
       ctx.fillStyle = '#fff9c4';
-      ctx.shadowColor = '#fff59d';
-      ctx.shadowBlur = 24;
       ctx.beginPath();
       ctx.arc(700, 58, 26, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
       ctx.fillStyle = '#0d1b2a';
       ctx.beginPath();
       ctx.arc(712, 50, 20, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillStyle = '#ffffff';
       for (let i = 0; i < 36; i++) {
         const sx = (i * 97 + 40) % W;
         const sy = (i * 53 + 18) % 140;
-        ctx.globalAlpha = 0.45 + Math.sin(frame * 0.05 + i) * 0.35;
-        ctx.fillRect(sx, sy, 2, 2);
+        if ((Math.sin(frame * 0.05 + i) + 1) * 0.5 > 0.35) ctx.fillRect(sx, sy, 2, 2);
       }
-      ctx.globalAlpha = 1;
     } else {
       const sun = ctx.createRadialGradient(670, 70, 4, 670, 70, 48);
       sun.addColorStop(0, '#fffde7');
