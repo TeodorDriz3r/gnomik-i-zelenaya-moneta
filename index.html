@@ -3890,42 +3890,55 @@
     updateUI();
   }
 
-  function buildingContour(b) {
-    // контур как на фото: стены + крыша целиком
-    return { x: b.x - 4, y: b.y, w: b.w + 8, h: b.h };
-  }
-
-  function buildingDoorZone(b) {
-    const doorW = Math.max(24, Math.min(36, b.w * 0.34));
+  function buildingDoorGap(b) {
+    // проём двери по центру низа — как на фото (разрыв в чёрной линии)
+    const doorW = Math.max(18, Math.min(26, Math.floor(b.w * 0.28)));
+    const doorDepth = 16;
     return {
       x: b.x + b.w / 2 - doorW / 2,
-      y: b.y + b.h - 4,
+      y: b.y + b.h - doorDepth,
       w: doorW,
-      h: 20
+      h: doorDepth + 10
     };
   }
 
+  function buildingDoorZone(b) {
+    return buildingDoorGap(b);
+  }
+
   function atBuildingDoor(cx, cy, b) {
-    const d = buildingDoorZone(b);
-    return cx >= d.x - 4 && cx <= d.x + d.w + 4 &&
-      cy >= d.y - 6 && cy <= d.y + d.h + 8;
+    const d = buildingDoorGap(b);
+    return cx >= d.x - 2 && cx <= d.x + d.w + 2 &&
+      cy >= d.y - 4 && cy <= d.y + d.h + 6;
+  }
+
+  function rectCollideBuildingSolid(box, b, allowDoor) {
+    // 1) весь корпус дома (крыша+стены) — твёрдый
+    const bodyH = Math.max(8, b.h - 16);
+    const body = { x: b.x, y: b.y, w: b.w, h: bodyH };
+    if (rectCollide(box, body)) return true;
+
+    // 2) низ дома: две «полки» слева и справа от двери (чёрные линии на фото)
+    const gap = buildingDoorGap(b);
+    const bottomY = b.y + b.h - 16;
+    const bottomH = 16;
+    const left = { x: b.x, y: bottomY, w: gap.x - b.x, h: bottomH };
+    const right = { x: gap.x + gap.w, y: bottomY, w: (b.x + b.w) - (gap.x + gap.w), h: bottomH };
+    if (left.w > 0 && rectCollide(box, left)) return true;
+    if (right.w > 0 && rectCollide(box, right)) return true;
+
+    // 3) мобам дверной проём тоже закрыт; игроку — можно встать в двери
+    if (!allowDoor) {
+      const doorBlock = { x: gap.x, y: bottomY, w: gap.w, h: bottomH };
+      if (rectCollide(box, doorBlock)) return true;
+    }
+    return false;
   }
 
   function townSolidAt(nx, ny, nw, nh, allowDoor) {
     const box = { x: nx, y: ny, w: nw, h: nh };
-    const pcx = nx + nw / 2;
-    const pbot = ny + nh;
     for (let b of TOWN_BUILDINGS) {
-      const c = buildingContour(b);
-      if (!rectCollide(box, c)) continue;
-      // игроку можно стоять в проёме двери (низ по центру)
-      if (allowDoor) {
-        const door = buildingDoorZone(b);
-        const inDoorX = pcx >= door.x && pcx <= door.x + door.w;
-        const inDoorY = pbot >= b.y + b.h - 8 && ny <= b.y + b.h + 16;
-        if (inDoorX && inDoorY) continue;
-      }
-      return true;
+      if (rectCollideBuildingSolid(box, b, !!allowDoor)) return true;
     }
     const fx = TOWN_FOUNTAIN.x;
     const fy = TOWN_FOUNTAIN.y;
