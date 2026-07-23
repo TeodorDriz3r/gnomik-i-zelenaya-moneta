@@ -6854,14 +6854,15 @@
       fieldSlimes.push({
         x: 180 + (i % 3) * 160,
         y: 100 + Math.floor(i / 3) * 140,
-        w: 24, h: 28, r: 14,
+        w: 18, h: 22, r: 11,
         hp: 6, maxHp: 6,
         alive: true,
         speed: 1.05,
         atkCd: 0,
         bob: 0,
         kind: 'goblin',
-        goblin: true
+        goblin: true,
+        avoidSign: i % 2 === 0 ? 1 : -1
       });
     }
     unstickFromObstacles(fieldSlimes);
@@ -6872,7 +6873,7 @@
     const plv = (townPlayer && townPlayer.level) || 1;
     const dmg = Math.max(1, Math.floor(plv * 0.85));
     guildDungeonBoss = {
-      x: 520, y: 180, w: 56, h: 64, r: 32,
+      x: 520, y: 180, w: 26, h: 30, r: 14,
       hp: 120, maxHp: 120,
       alive: true,
       speed: 0.75,
@@ -6882,7 +6883,8 @@
       level: 50,
       damage: dmg,
       goblin: true,
-      boss: true
+      boss: true,
+      avoidSign: 1
     };
     unstickFromObstacles([guildDungeonBoss]);
     guildDungeonPhase = 'boss';
@@ -6945,7 +6947,7 @@
         const dy = pcy - (b.y + b.h / 2);
         const d = Math.hypot(dx, dy) || 1;
         if (b.atkCd > 0) b.atkCd--;
-        if (d < 36 && b.atkCd <= 0) {
+        if (d < 26 && b.atkCd <= 0) {
           hurtPlayer(b.damage);
           b.atkCd = 50;
         }
@@ -8451,12 +8453,13 @@
       fieldSlimes.push({
         x: 120 + i * 130 + rand(-20, 20),
         y: 220 + rand(-40, 80),
-        w: 28, h: 22, r: 16,
+        w: 18, h: 22, r: 11,
         hp: 4, maxHp: 4,
         alive: true,
         speed: 1.15,
         atkCd: 0,
-        bob: rand(0, Math.PI * 2)
+        bob: rand(0, Math.PI * 2),
+        avoidSign: i % 2 === 0 ? 1 : -1
       });
     }
     unstickFromObstacles(fieldSlimes);
@@ -8481,14 +8484,15 @@
       fieldSlimes.push({
         x: 200 + (i % 4) * 140,
         y: 120 + Math.floor(i / 4) * 120,
-        w: 26, h: 26, r: 14,
+        w: 18, h: 22, r: 11,
         hp: 3 + dungeonLevel,
         maxHp: 3 + dungeonLevel,
         alive: true,
         speed: 0.9 + dungeonLevel * 0.1,
         atkCd: 0,
         bob: 0,
-        kind: 'dungeon'
+        kind: 'dungeon',
+        avoidSign: i % 2 === 0 ? 1 : -1
       });
     }
     unstickFromObstacles(fieldSlimes);
@@ -8710,7 +8714,7 @@
 
   // Следующая клетка пути к цели в обход препятствий (BFS)
   function zonePathNextStep(m, tx, ty, solidFn) {
-    const cell = 20;
+    const cell = 16;
     const egx = Math.floor((m.x + m.w / 2) / cell);
     const egy = Math.floor((m.y + m.h / 2) / cell);
     const pgx = Math.floor(tx / cell);
@@ -8731,10 +8735,14 @@
     const q = [[egx, egy]];
     const came = {};
     came[key(egx, egy)] = null;
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    // сначала в сторону avoidSign (обход), потом остальные
+    const sign = m.avoidSign || 1;
+    const dirs = sign >= 0
+      ? [[1, 0], [0, 1], [-1, 0], [0, -1]]
+      : [[-1, 0], [0, -1], [1, 0], [0, 1]];
     let found = false;
     let guard = 0;
-    while (q.length && guard++ < 500) {
+    while (q.length && guard++ < 700) {
       const [x, y] = q.shift();
       if (x === pgx && y === pgy) { found = true; break; }
       for (let [dx, dy] of dirs) {
@@ -8763,10 +8771,11 @@
     }
   }
 
-  // Моб идёт к цели, видит препятствия и обходит их
+  // Моб идёт к цели; если не проходит — обходит в другую сторону
   function moveMobToward(m, tx, ty, solidFn) {
     solidFn = solidFn || zoneSolidAt;
     if (m.avoidSign == null) m.avoidSign = Math.random() < 0.5 ? 1 : -1;
+    if (m.stuck == null) m.stuck = 0;
 
     let aimX = tx;
     let aimY = ty;
@@ -8796,27 +8805,51 @@
       return false;
     };
 
-    if (tryMove(sx, sy)) return true;
-    // скольжение по осям
-    if (tryMove(sx, 0)) return true;
-    if (tryMove(0, sy)) return true;
-
-    // обойти вдоль стены (перпендикуляр)
-    const px = -sy * m.avoidSign;
-    const py = sx * m.avoidSign;
-    if (tryMove(px, py)) return true;
-    if (tryMove(-px, -py)) {
-      m.avoidSign *= -1;
+    if (tryMove(sx, sy) || tryMove(sx, 0) || tryMove(0, sy)) {
+      m.stuck = 0;
       return true;
     }
 
-    // веер углов, если застрял
-    for (let a = 0.5; a < Math.PI; a += 0.45) {
-      const c = Math.cos(a), s = Math.sin(a);
-      if (tryMove(sx * c - sy * s, sx * s + sy * c)) return true;
-      if (tryMove(sx * c + sy * s, -sx * s + sy * c)) return true;
+    // Прямо не проходит — сменить сторону обхода
+    m.stuck++;
+    if (m.stuck >= 2) {
+      m.avoidSign *= -1;
+      m.stuck = 0;
     }
+
+    const sides = [m.avoidSign, -m.avoidSign];
+    for (let sign of sides) {
+      const px = -sy * sign;
+      const py = sx * sign;
+      if (tryMove(px * 1.35, py * 1.35) || tryMove(px, 0) || tryMove(0, py)) {
+        m.avoidSign = sign;
+        m.stuck = 0;
+        return true;
+      }
+    }
+
+    // Веер углов: сначала «своя» сторона, потом противоположная
+    for (let a = 0.35; a < Math.PI; a += 0.3) {
+      for (let sign of sides) {
+        const c = Math.cos(a * sign);
+        const s = Math.sin(a * sign);
+        if (tryMove(sx * c - sy * s, sx * s + sy * c)) {
+          m.avoidSign = sign;
+          m.stuck = 0;
+          return true;
+        }
+      }
+    }
+
+    // Чуть назад и снова в другую сторону
     m.avoidSign *= -1;
+    tryMove(-sx * 0.6, -sy * 0.6);
+    const px = -sy * m.avoidSign;
+    const py = sx * m.avoidSign;
+    if (tryMove(px, py)) {
+      m.stuck = 0;
+      return true;
+    }
     return false;
   }
 
