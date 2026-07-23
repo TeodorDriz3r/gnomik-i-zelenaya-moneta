@@ -3682,19 +3682,21 @@
     }, 2500);
   }
 
-  // Раскладка зданий по схеме: ворота снизу, фонтан в центре, гильдия (#1) сверху
+  // Раскладка: дома по центрам вертикальных дорог, двери на горизонтальных
+  // Вертикали (центр полосы 28px): 114, 250, 400, 530, 674
+  // Горизонтали: верх y=198, низ y=340
   const TOWN_BUILDINGS = [
-    { id: 1, name: 'Гильдия', x: 340, y: 22, w: 120, h: 64, door: true, color: '#a1887f', roof: '#5d4037', special: 'guild', accent: '#ffe082' },
-    { id: 2, name: 'Дом 2', x: 500, y: 88, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
-    { id: 3, name: 'Цветы', x: 505, y: 210, w: 68, h: 52, door: true, color: '#f48fb1', roof: '#ad1457', special: 'flowers', accent: '#fce4ec' },
-    { id: 6, name: 'Дом 6', x: 500, y: 300, w: 72, h: 52, door: true, color: '#bcaaa4', roof: '#4e342e', accent: '#d7ccc8' },
-    { id: 4, name: 'Дом 4', x: 640, y: 88, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
-    { id: 5, name: 'Дом 5', x: 645, y: 295, w: 80, h: 56, door: true, color: '#ffcc80', roof: '#ef6c00', accent: '#fff3e0' },
-    { id: 7, name: 'Оружейная', x: 230, y: 88, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
-    { id: 8, name: 'Зелья', x: 228, y: 210, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
-    { id: 11, name: 'Таверна', x: 225, y: 300, w: 72, h: 52, door: true, color: '#d7ccc8', roof: '#5d4037', accent: '#efebe9', special: 'tavern' },
-    { id: 9, name: 'Дом 9', x: 80, y: 88, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
-    { id: 10, name: 'Дом 10', x: 75, y: 280, w: 80, h: 56, door: true, color: '#80cbc4', roof: '#00695c', accent: '#e0f2f1' }
+    { id: 1, name: 'Гильдия', x: 340, y: 18, w: 120, h: 64, door: true, color: '#a1887f', roof: '#5d4037', special: 'guild', accent: '#ffe082' },
+    { id: 9, name: 'Дом 9', x: 75, y: 142, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
+    { id: 7, name: 'Оружейная', x: 215, y: 146, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
+    { id: 2, name: 'Дом 2', x: 495, y: 146, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
+    { id: 4, name: 'Дом 4', x: 635, y: 142, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
+    { id: 8, name: 'Зелья', x: 216, y: 232, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
+    { id: 3, name: 'Цветы', x: 496, y: 232, w: 68, h: 52, door: true, color: '#f48fb1', roof: '#ad1457', special: 'flowers', accent: '#fce4ec' },
+    { id: 10, name: 'Дом 10', x: 74, y: 284, w: 80, h: 56, door: true, color: '#80cbc4', roof: '#00695c', accent: '#e0f2f1' },
+    { id: 11, name: 'Таверна', x: 214, y: 288, w: 72, h: 52, door: true, color: '#d7ccc8', roof: '#5d4037', accent: '#efebe9', special: 'tavern' },
+    { id: 6, name: 'Дом 6', x: 494, y: 288, w: 72, h: 52, door: true, color: '#bcaaa4', roof: '#4e342e', accent: '#d7ccc8' },
+    { id: 5, name: 'Дом 5', x: 634, y: 284, w: 80, h: 56, door: true, color: '#ffcc80', roof: '#ef6c00', accent: '#fff3e0' }
   ];
 
   const TOWN_FOUNTAIN = { x: 400, y: 210, r: 38 };
@@ -3756,8 +3758,8 @@
       c.gnomeY = 360;
       c.caption = '«Хочу купить цветы для принцессы...»';
     } else if (c.phase === 3) {
-      c.gnomeX = 520;
-      c.gnomeY = 230;
+      c.gnomeX = 530;
+      c.gnomeY = 290;
       c.caption = 'Но цветы слишком дорогие для него...';
     } else if (c.phase === 4) {
       c.caption = '«Нужно заработать денег!»';
@@ -3767,7 +3769,7 @@
       c.caption = 'Он видит дом: «Гильдия искателей приключений»';
     } else if (c.phase === 6) {
       c.gnomeX = 400;
-      c.gnomeY = 95;
+      c.gnomeY = 90;
       c.insideGuild = true;
       c.caption = 'Гномик заходит в гильдию...';
     } else if (c.phase === 7) {
@@ -3790,13 +3792,13 @@
       if (c.gnomeY <= 360 || c.t > 100) advanceCityIntro();
     } else if (c.phase === 2 && c.t > 100) advanceCityIntro();
     else if (c.phase === 3) {
-      c.gnomeX += (535 - c.gnomeX) * 0.04;
-      c.gnomeY += (230 - c.gnomeY) * 0.04;
+      c.gnomeX += (530 - c.gnomeX) * 0.04;
+      c.gnomeY += (290 - c.gnomeY) * 0.04;
       if (c.t > 110) advanceCityIntro();
     } else if (c.phase === 4 && c.t > 90) advanceCityIntro();
     else if (c.phase === 5) {
       c.gnomeX += (400 - c.gnomeX) * 0.05;
-      c.gnomeY += (120 - c.gnomeY) * 0.05;
+      c.gnomeY += (95 - c.gnomeY) * 0.05;
       if (c.t > 110) advanceCityIntro();
     } else if (c.phase === 6 && c.t > 70) advanceCityIntro();
     else if (c.phase === 7 && c.t > 80) openClassSelect();
@@ -4804,11 +4806,11 @@
   function drawPathToDoor(b) {
     const doorX = b.x + b.w / 2;
     const doorY = b.y + b.h;
-    // ближайшая горизонтальная дорога
+    // центры горизонтальных дорог (полоса h=28: 198→212, 340→354)
     let roadY = 212;
-    if (doorY > 280) roadY = 354;
-    else if (doorY < 160) roadY = 212;
-    else roadY = doorY > 230 ? 354 : 212;
+    if (doorY >= 300) roadY = 354;
+    else if (doorY <= 200) roadY = 212;
+    else roadY = doorY > 260 ? 354 : 212;
 
     // для гильдии — к центральной вертикальной
     if (b.special === 'guild') {
@@ -4819,16 +4821,9 @@
 
     const pathW = 16;
     // вертикаль от двери к горизонтали
-    const top = Math.min(doorY, roadY + 14);
+    const top = Math.min(doorY, roadY);
     const bot = Math.max(doorY, roadY + 14);
-    fillBrickRect(doorX - pathW / 2, top, pathW, bot - top + 2);
-    // если дом далеко от главной оси — короткая горизонталь к ближайшей вертикали района
-    const laneX = doorX < 400 ? 250 : 530;
-    if (Math.abs(doorX - 400) > 90) {
-      const x0 = Math.min(doorX, laneX);
-      const x1 = Math.max(doorX, laneX);
-      fillBrickRect(x0, roadY + 6, x1 - x0, pathW);
-    }
+    if (bot > top) fillBrickRect(doorX - pathW / 2, top, pathW, bot - top);
   }
 
   function ensureTownNpcs() {
