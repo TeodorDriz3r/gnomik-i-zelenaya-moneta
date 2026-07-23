@@ -4545,6 +4545,76 @@
     }
   }
 
+  function paintStoneWall(x, y, w, h) {
+    if (w <= 0 || h <= 0) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+
+    const bw = 11;
+    const bh = 8;
+    const rows = Math.ceil(h / bh) + 2;
+    const cols = Math.ceil(w / bw) + 3;
+
+    for (let row = 0; row < rows; row++) {
+      const oy = y + row * bh;
+      // чуть неровный ряд — «дикий» камень
+      const rowJitter = ((row * 17) % 3) - 1;
+      const offset = (row % 2) * (bw * 0.5) + rowJitter;
+      for (let col = -1; col < cols; col++) {
+        const ox = x + col * bw + offset;
+        const seed = (row * 31 + col * 17 + ((ox * 3) | 0)) & 7;
+        const inset = 0.5 + (seed % 3) * 0.3;
+        const sw = bw - 1.2 - (seed % 2) * 0.6;
+        const sh = bh - 1.1 - ((seed >> 1) % 2) * 0.5;
+
+        // объём камня: тень / свет поверх цвета стены
+        ctx.fillStyle = seed < 3
+          ? 'rgba(0,0,0,0.16)'
+          : (seed < 5 ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.14)');
+        ctx.fillRect(ox + inset, oy + inset, sw, sh);
+
+        // блик на верхнем краю
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(ox + inset + 1, oy + inset + 0.5, sw - 2, 1.5);
+
+        // тёмная кромка снизу/справа
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.fillRect(ox + inset, oy + inset + sh - 1.2, sw, 1.2);
+        ctx.fillRect(ox + inset + sw - 1.2, oy + inset, 1.2, sh);
+
+        // мелкие точки-фактура
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        const px = ox + inset + 2 + (seed % 4);
+        const py = oy + inset + 2 + ((seed * 3) % 3);
+        ctx.fillRect(px, py, 1.2, 1.2);
+        if (seed % 2 === 0) ctx.fillRect(px + 3, py + 2, 1, 1);
+      }
+    }
+
+    // швы раствора между камнями
+    ctx.strokeStyle = 'rgba(40, 28, 20, 0.28)';
+    ctx.lineWidth = 1;
+    for (let row = 0; row < rows; row++) {
+      const oy = y + row * bh;
+      const offset = (row % 2) * (bw * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(x, oy);
+      ctx.lineTo(x + w, oy);
+      ctx.stroke();
+      for (let col = -1; col < cols; col++) {
+        const ox = x + col * bw + offset;
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(ox, oy + bh);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
   function drawTownBuilding(b, highlight) {
     const roofH = 20;
     const bodyY = b.y + roofH * 0.45;
@@ -4556,14 +4626,15 @@
     ctx.ellipse(b.x + b.w / 2 + 4, b.y + b.h + 4, b.w * 0.45, 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // стены с лёгким градиентом
+    // стены с лёгким градиентом + фактура камня (цвет тот же)
     const wall = ctx.createLinearGradient(b.x, bodyY, b.x + b.w, bodyY + bodyH);
     wall.addColorStop(0, b.accent || '#fff');
     wall.addColorStop(0.35, b.color);
     wall.addColorStop(1, b.color);
     ctx.fillStyle = wall;
     ctx.fillRect(b.x, bodyY, b.w, bodyH);
-    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    paintStoneWall(b.x, bodyY, b.w, bodyH);
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(b.x + 0.5, bodyY + 0.5, b.w - 1, bodyH - 1);
 
