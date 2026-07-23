@@ -39,6 +39,59 @@
       image-rendering: pixelated;
       -ms-interpolation-mode: nearest-neighbor;
     }
+    .info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 12px 10px 8px;
+      color: #b5c7e8;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .info span {
+      background: #181e2e;
+      padding: 4px 16px;
+      border-radius: 40px;
+      border: 1px solid #2f3850;
+    }
+    .controls {
+      margin-top: 10px;
+      color: #8a9bbf;
+      background: #181e2e;
+      padding: 8px 18px;
+      border-radius: 60px;
+      display: inline-block;
+      border: 1px solid #2f3850;
+      font-size: 16px;
+    }
+    .controls kbd {
+      background: #2f3850;
+      color: #fff;
+      padding: 2px 12px;
+      border-radius: 30px;
+      font-weight: bold;
+      margin: 0 4px;
+    }
+    button {
+      background: #3f5a8c;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      padding: 6px 24px;
+      border-radius: 60px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+      margin-left: 15px;
+    }
+    button:hover { background: #5a79b5; transform: scale(1.03); }
+    #message {
+      margin-top: 8px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #f7d44a;
+      height: 26px;
+    }
     .canvas-wrap {
       position: relative;
       display: inline-block;
