@@ -4694,6 +4694,42 @@
     }
   }
 
+  function fillBrickRect(x, y, w, h) {
+    if (w <= 0 || h <= 0) return;
+    const bw = 16;
+    const bh = 8;
+    const mortar = '#4e342e';
+    const brickLight = '#a1887f';
+    const brickMid = '#8d6e63';
+    const brickDark = '#6d4c41';
+    ctx.fillStyle = mortar;
+    ctx.fillRect(x, y, w, h);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
+    const rows = Math.ceil(h / bh) + 2;
+    const cols = Math.ceil(w / bw) + 3;
+    for (let row = 0; row < rows; row++) {
+      const oy = y + row * bh;
+      const offset = (row % 2) * (bw * 0.5);
+      for (let col = -1; col < cols; col++) {
+        const ox = x + col * bw + offset;
+        const tone = (row * 3 + col * 5 + ((ox * 13) | 0)) % 3;
+        ctx.fillStyle = tone === 0 ? brickLight : (tone === 1 ? brickMid : brickDark);
+        ctx.fillRect(ox + 1, oy + 1, bw - 2, bh - 2);
+        // лёгкий блик на кирпиче
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(ox + 2, oy + 2, bw - 5, 2);
+      }
+    }
+    ctx.restore();
+    // бордюр
+    ctx.strokeStyle = 'rgba(62, 39, 35, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  }
+
   function drawPathToDoor(b) {
     const doorX = b.x + b.w / 2;
     const doorY = b.y + b.h;
@@ -4705,30 +4741,22 @@
 
     // для гильдии — к центральной вертикальной
     if (b.special === 'guild') {
-      ctx.fillStyle = '#bdbdbd';
-      ctx.fillRect(doorX - 10, doorY, 20, Math.max(8, 212 - doorY));
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(doorX, doorY + 2);
-      ctx.lineTo(doorX, 212);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      const gh = Math.max(8, 212 - doorY);
+      fillBrickRect(doorX - 10, doorY, 20, gh);
       return;
     }
 
-    ctx.fillStyle = '#bdbdbd';
     const pathW = 16;
     // вертикаль от двери к горизонтали
     const top = Math.min(doorY, roadY + 14);
     const bot = Math.max(doorY, roadY + 14);
-    ctx.fillRect(doorX - pathW / 2, top, pathW, bot - top + 2);
+    fillBrickRect(doorX - pathW / 2, top, pathW, bot - top + 2);
     // если дом далеко от главной оси — короткая горизонталь к ближайшей вертикали района
     const laneX = doorX < 400 ? 250 : 530;
     if (Math.abs(doorX - 400) > 90) {
       const x0 = Math.min(doorX, laneX);
       const x1 = Math.max(doorX, laneX);
-      ctx.fillRect(x0, roadY + 6, x1 - x0, pathW);
+      fillBrickRect(x0, roadY + 6, x1 - x0, pathW);
     }
   }
 
@@ -4900,33 +4928,13 @@
     ctx.fillRect(220, H - 42, 20, 9);
 
     function roadH(y, x0, x1) {
-      ctx.fillStyle = '#9e9e9e';
-      ctx.fillRect(x0, y, x1 - x0, 28);
-      ctx.fillStyle = '#bdbdbd';
-      ctx.fillRect(x0, y, x1 - x0, 3);
-      ctx.strokeStyle = '#fff';
-      ctx.setLineDash([8, 8]);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x0 + 4, y + 14);
-      ctx.lineTo(x1 - 4, y + 14);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      fillBrickRect(x0, y, x1 - x0, 28);
     }
     function roadV(x, y0, y1) {
-      ctx.fillStyle = '#9e9e9e';
-      ctx.fillRect(x, y0, 28, y1 - y0);
-      ctx.strokeStyle = '#fff';
-      ctx.setLineDash([8, 8]);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x + 14, y0 + 4);
-      ctx.lineTo(x + 14, y1 - 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      fillBrickRect(x, y0, 28, y1 - y0);
     }
 
-    // главные дороги
+    // главные дороги — кирпичная кладка
     roadV(386, 90, 410);
     roadH(198, 60, 740);
     roadH(340, 70, 730);
@@ -4939,13 +4947,15 @@
     // дорожки к каждому дому
     for (let b of TOWN_BUILDINGS) drawPathToDoor(b);
 
-    // площадь вокруг фонтана
-    ctx.fillStyle = '#d7ccc8';
+    // площадь вокруг фонтана — тоже кирпич
+    ctx.save();
     ctx.beginPath();
     ctx.arc(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y, 62, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.clip();
+    fillBrickRect(TOWN_FOUNTAIN.x - 62, TOWN_FOUNTAIN.y - 62, 124, 124);
+    ctx.restore();
     // кольцо-памятник / бордюр
-    ctx.strokeStyle = '#8d6e63';
+    ctx.strokeStyle = '#5d4037';
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(TOWN_FOUNTAIN.x, TOWN_FOUNTAIN.y, 62, 0, Math.PI * 2);
