@@ -4832,21 +4832,32 @@
       {
         role: 'monument', name: 'Гуляка',
         x: 470, y: 200, facing: 1, phase: 0, t: 0, pause: 0,
-        color: '#5c6bc0', pants: '#283593', hair: '#6d4c41', skin: '#ffe0c2',
+        // пальто бордо, жилет, тёплые тона как у домов
+        coat: '#8d4e4e', vest: '#efebe9', pants: '#4e342e',
+        hair: '#5d4037', skin: '#f0c9a0', boot: '#3e2723',
         angle: 0.2, radius: 72
       },
       {
         role: 'water', name: 'Садовник',
         x: 150, y: 340, facing: 1, phase: 0, t: 0, pause: 0, watering: 0,
-        color: '#66bb6a', pants: '#2e7d32', hair: '#f4c430', skin: '#ffe0c2',
+        shirt: '#6d4c41', apron: '#c5e1a5', pants: '#5d4037',
+        hair: '#d7ccc8', skin: '#e8b88a', boot: '#3e2723', hat: '#8d6e63',
         targets: [{ x: 140, y: 340 }, { x: 200, y: 360 }, { x: 100, y: 300 }, { x: 170, y: 380 }],
         ti: 0
       },
       {
         role: 'search', name: 'Искатель',
         x: 320, y: 300, facing: -1, phase: 0, t: 0, pause: 0, look: 0,
-        color: '#ff8a65', pants: '#bf360c', hair: '#212121', skin: '#ffe0c2',
+        tunic: '#6d4c41', sash: '#bf360c', pants: '#3e2723',
+        hair: '#212121', skin: '#d9a882', boot: '#1b0000', cape: '#5d4037',
         tx: 320, ty: 300
+      },
+      {
+        role: 'merchant', name: 'Торговка',
+        x: 580, y: 360, facing: -1, phase: 0, t: 0, pause: 0, wave: 0,
+        dress: '#ad1457', apron: '#fce4ec', pants: '#6a1b9a',
+        hair: '#4e342e', skin: '#f0c9a0', boot: '#3e2723', basket: true,
+        tx: 580, ty: 360
       }
     ];
   }
@@ -4891,10 +4902,8 @@
         if (d < 5) {
           n.look = 45;
           n.pause = 8;
-          // новая точка поиска по городу
           n.tx = 120 + Math.random() * 560;
           n.ty = 120 + Math.random() * 240;
-          // не в фонтан
           if (Math.hypot(n.tx - TOWN_FOUNTAIN.x, n.ty - TOWN_FOUNTAIN.y) < 55) {
             n.tx = TOWN_FOUNTAIN.x + 90;
           }
@@ -4903,65 +4912,316 @@
           n.y += (dy / d) * 0.95;
           n.facing = dx >= 0 ? 1 : -1;
         }
+      } else if (n.role === 'merchant') {
+        if (n.wave > 0) { n.wave--; }
+        if (n.pause > 0) { n.pause--; continue; }
+        const dx = n.tx - n.x;
+        const dy = n.ty - n.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < 5) {
+          n.wave = 35;
+          n.pause = 50 + (n.t % 40);
+          // вдоль нижней улицы у домов
+          n.tx = 100 + Math.random() * 600;
+          n.ty = 350 + Math.random() * 18;
+        } else {
+          n.x += (dx / d) * 0.55;
+          n.y += (dy / d) * 0.55;
+          n.facing = dx >= 0 ? 1 : -1;
+        }
       }
     }
   }
 
   function drawTownNpc(n) {
-    const bob = Math.sin(n.phase) * (n.watering || n.look || n.pause ? 0.5 : 2);
+    const idle = !!(n.watering || n.look || n.pause || n.wave);
+    const bob = Math.sin(n.phase) * (idle ? 0.4 : 1.6);
+    const leg = Math.sin(n.phase) * (idle ? 0 : 3.2);
+    const armSwing = Math.sin(n.phase) * (idle ? 0.4 : 2.2);
+
     ctx.save();
     ctx.translate(n.x, n.y + bob);
-    ctx.scale(n.facing, 1);
+
+    // тень на кирпиче
+    ctx.fillStyle = 'rgba(40, 28, 20, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 11, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.scale(n.facing || 1, 1);
+
+    const skin = n.skin || '#f0c9a0';
+    const boot = n.boot || '#3e2723';
+    const pants = n.pants || '#4e342e';
+    const hair = n.hair || '#5d4037';
+
+    // ботинки
+    ctx.fillStyle = boot;
+    ctx.beginPath();
+    ctx.ellipse(-4 + leg * 0.25, 16.5, 4.2, 2.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(4 - leg * 0.25, 16.5, 4.2, 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
 
     // ноги
-    const leg = Math.sin(n.phase) * (n.watering || n.look || n.pause ? 0 : 3);
-    ctx.fillStyle = n.pants;
-    ctx.fillRect(-5, 6, 4, 8);
-    ctx.fillRect(1, 6 + leg * 0.3, 4, 8);
-    // тело
-    ctx.fillStyle = n.color;
-    ctx.fillRect(-7, -6, 14, 14);
-    // голова
-    ctx.fillStyle = n.skin;
+    ctx.fillStyle = pants;
+    ctx.fillRect(-5.5 + leg * 0.3, 6, 4.5, 10);
+    ctx.fillRect(1 - leg * 0.3, 6, 4.5, 10);
+    // складки
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(-4.5 + leg * 0.3, 9, 1, 5);
+    ctx.fillRect(2.5 - leg * 0.3, 9, 1, 5);
+
+    // торс / одежда по роли
+    if (n.role === 'monument') {
+      // пальто
+      const coat = ctx.createLinearGradient(-9, -8, 9, 10);
+      coat.addColorStop(0, n.coat || '#8d4e4e');
+      coat.addColorStop(1, '#5d3030');
+      ctx.fillStyle = coat;
+      ctx.beginPath();
+      ctx.moveTo(-9, -6);
+      ctx.lineTo(-10, 8);
+      ctx.lineTo(10, 8);
+      ctx.lineTo(9, -6);
+      ctx.closePath();
+      ctx.fill();
+      // лацканы / жилет
+      ctx.fillStyle = n.vest || '#efebe9';
+      ctx.beginPath();
+      ctx.moveTo(-2, -5);
+      ctx.lineTo(0, 7);
+      ctx.lineTo(2, -5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(-8, -5, 3, 10);
+      // шарф
+      ctx.fillStyle = '#c62828';
+      ctx.fillRect(-4, -8, 8, 3);
+      ctx.fillRect(3, -6, 3, 8);
+    } else if (n.role === 'water') {
+      ctx.fillStyle = n.shirt || '#6d4c41';
+      ctx.fillRect(-8, -6, 16, 14);
+      // фартук
+      ctx.fillStyle = n.apron || '#c5e1a5';
+      ctx.fillRect(-6, -2, 12, 11);
+      ctx.fillStyle = '#8d6e63';
+      ctx.fillRect(-6, -2, 12, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(-5, 2, 10, 1);
+    } else if (n.role === 'search') {
+      // плащ
+      ctx.fillStyle = n.cape || '#5d4037';
+      ctx.beginPath();
+      ctx.moveTo(-3, -7);
+      ctx.quadraticCurveTo(-16, 2, -11, 12);
+      ctx.lineTo(-6, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = n.tunic || '#6d4c41';
+      ctx.fillRect(-8, -6, 16, 14);
+      ctx.fillStyle = n.sash || '#bf360c';
+      ctx.fillRect(-8, 2, 16, 3);
+      // сумка
+      ctx.fillStyle = '#8d6e63';
+      ctx.fillRect(6, 0, 7, 8);
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(6.5, 0.5, 6, 7);
+      ctx.fillStyle = '#a1887f';
+      ctx.fillRect(7, -1, 5, 2);
+    } else if (n.role === 'merchant') {
+      ctx.fillStyle = n.dress || '#ad1457';
+      ctx.beginPath();
+      ctx.moveTo(-8, -6);
+      ctx.lineTo(-11, 12);
+      ctx.lineTo(11, 12);
+      ctx.lineTo(8, -6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = n.apron || '#fce4ec';
+      ctx.fillRect(-5, 0, 10, 10);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(-7, -5, 4, 8);
+    } else {
+      ctx.fillStyle = n.color || '#8d6e63';
+      ctx.fillRect(-8, -6, 16, 14);
+    }
+
+    // руки
+    ctx.fillStyle = skin;
+    if (n.role === 'water' && n.watering > 0) {
+      ctx.fillRect(7, -4, 3.5, 9);
+      ctx.fillRect(-7 - armSwing * 0.2, -2, 3.5, 8);
+    } else if (n.role === 'merchant' && n.wave > 0) {
+      ctx.fillRect(-7, -2, 3.5, 8);
+      // машет
+      ctx.save();
+      ctx.translate(8, -4);
+      ctx.rotate(-0.8 + Math.sin(frame * 0.25) * 0.35);
+      ctx.fillRect(0, 0, 3.5, 9);
+      ctx.restore();
+    } else {
+      ctx.fillRect(-8 - armSwing * 0.15, -2, 3.5, 9);
+      ctx.fillRect(5 + armSwing * 0.15, -2, 3.5, 9);
+    }
+
+    // рукава поверх рук (короткие)
+    if (n.role === 'monument') {
+      ctx.fillStyle = n.coat || '#8d4e4e';
+      ctx.fillRect(-9, -5, 4, 7);
+      ctx.fillRect(5, -5, 4, 7);
+    } else if (n.role === 'search') {
+      ctx.fillStyle = n.tunic || '#6d4c41';
+      ctx.fillRect(-9, -5, 4, 6);
+      ctx.fillRect(5, -5, 4, 6);
+    }
+
+    // шея + голова
+    ctx.fillStyle = skin;
+    ctx.fillRect(-2.5, -10, 5, 4);
     ctx.beginPath();
-    ctx.arc(0, -12, 7, 0, Math.PI * 2);
+    ctx.arc(0, -14, 7.2, 0, Math.PI * 2);
     ctx.fill();
-    // волосы
-    ctx.fillStyle = n.hair;
+    // румянец
+    ctx.fillStyle = 'rgba(220, 120, 100, 0.28)';
     ctx.beginPath();
-    ctx.ellipse(0, -15, 7.5, 5, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-    // глаза
-    ctx.fillStyle = '#222';
-    ctx.beginPath();
-    ctx.arc(-2.5, -12, 1.2, 0, Math.PI * 2);
-    ctx.arc(2.5, -12, 1.2, 0, Math.PI * 2);
+    ctx.ellipse(-4.2, -12.5, 1.8, 1.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(4.2, -12.5, 1.8, 1.2, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // волосы
+    ctx.fillStyle = hair;
+    ctx.beginPath();
+    ctx.ellipse(0, -17, 7.4, 4.8, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    if (n.role === 'merchant') {
+      // пучок
+      ctx.beginPath();
+      ctx.arc(5, -19, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#c62828';
+      ctx.fillRect(3, -17, 4, 2);
+    } else if (n.role === 'search') {
+      ctx.fillRect(-7, -16, 14, 3);
+      ctx.beginPath();
+      ctx.moveTo(-6, -14);
+      ctx.lineTo(-9, -8);
+      ctx.lineTo(-4, -12);
+      ctx.fill();
+    } else if (n.role === 'water') {
+      // шляпа садовника
+      ctx.fillStyle = n.hat || '#8d6e63';
+      ctx.beginPath();
+      ctx.ellipse(0, -18, 9, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-5, -24, 10, 7);
+      ctx.fillStyle = '#6d4c41';
+      ctx.fillRect(-5, -19, 10, 2);
+    } else {
+      // гуляка — лёгкая чёлка
+      ctx.beginPath();
+      ctx.moveTo(-6, -16);
+      ctx.quadraticCurveTo(-2, -12, 1, -16);
+      ctx.fill();
+    }
+
+    // глаза и брови
+    ctx.fillStyle = '#3e2723';
+    ctx.fillRect(-4.2, -16, 2.6, 0.8);
+    ctx.fillRect(1.6, -16, 2.6, 0.8);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-2.8, -13.5, 1.7, 0, Math.PI * 2);
+    ctx.arc(2.8, -13.5, 1.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2c1810';
+    ctx.beginPath();
+    ctx.arc(-2.4, -13.4, 0.9, 0, Math.PI * 2);
+    ctx.arc(3.2, -13.4, 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    // рот
+    ctx.strokeStyle = 'rgba(120, 60, 50, 0.7)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, -10.5, 2.2, 0.15, Math.PI - 0.15);
+    ctx.stroke();
+
+    // реквизит
     if (n.role === 'water' && n.watering > 0) {
-      // лейка
-      ctx.fillStyle = '#546e7a';
-      ctx.fillRect(8, -2, 10, 6);
-      ctx.fillRect(16, -4, 3, 8);
-      ctx.strokeStyle = 'rgba(100,180,255,0.7)';
-      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#607d8b';
+      ctx.beginPath();
+      ctx.moveTo(9, -1);
+      ctx.lineTo(20, -3);
+      ctx.lineTo(21, 4);
+      ctx.lineTo(10, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#455a64';
+      ctx.fillRect(18, -6, 4, 10);
+      ctx.strokeStyle = 'rgba(120, 190, 255, 0.75)';
+      ctx.lineWidth = 1.4;
       for (let i = 0; i < 5; i++) {
         ctx.beginPath();
-        ctx.moveTo(18, 2);
-        ctx.lineTo(22 + i * 2, 10 + Math.sin(frame * 0.3 + i) * 3);
+        ctx.moveTo(20, 3);
+        ctx.lineTo(24 + i * 2.2, 11 + Math.sin(frame * 0.28 + i) * 2.5);
         ctx.stroke();
       }
     }
     if (n.role === 'search' && n.look > 0) {
-      ctx.fillStyle = '#fff';
+      // карта в руках
+      ctx.fillStyle = '#ffe0b2';
+      ctx.fillRect(8, -8, 10, 8);
+      ctx.strokeStyle = '#a1887f';
+      ctx.strokeRect(8.5, -7.5, 9, 7);
+      ctx.strokeStyle = '#8d6e63';
       ctx.beginPath();
-      ctx.arc(10, -22, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#333';
-      ctx.font = 'bold 10px Segoe UI, Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('?', 10, -19);
+      ctx.moveTo(10, -5);
+      ctx.lineTo(15, -3);
+      ctx.lineTo(12, -1);
+      ctx.stroke();
     }
+    if (n.role === 'merchant') {
+      // корзина
+      ctx.fillStyle = '#a1887f';
+      ctx.beginPath();
+      ctx.moveTo(8, 4);
+      ctx.lineTo(10, 14);
+      ctx.lineTo(20, 14);
+      ctx.lineTo(18, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#6d4c41';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(14, 4, 5, Math.PI, 0);
+      ctx.stroke();
+      const blooms = ['#e91e63', '#fff59d', '#ce93d8', '#ef9a9a'];
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = blooms[i];
+        ctx.beginPath();
+        ctx.arc(11 + i * 2.2, 6 + (i % 2), 2.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // подпись при паузе рядом — тонкая, как вывески города
+    if (idle && (n.pause > 20 || n.wave > 10 || n.look > 20 || n.watering > 20)) {
+      ctx.scale(n.facing || 1, 1); // сброс зеркала для текста
+      ctx.fillStyle = 'rgba(255, 248, 225, 0.92)';
+      ctx.fillRect(-18, -34, 36, 12);
+      ctx.strokeStyle = '#5d4037';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-18, -34, 36, 12);
+      ctx.fillStyle = '#3e2723';
+      ctx.font = 'bold 9px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.name, 0, -28);
+      ctx.textBaseline = 'alphabetic';
+    }
+
     ctx.restore();
   }
 
