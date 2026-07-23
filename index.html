@@ -3690,7 +3690,7 @@
     // верхние 4 — высота как у остальных; низ/дверь на верхнем конце вертикальной дороги
     { id: 9, name: 'Дом 9', x: 75, y: 54, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
     { id: 7, name: 'Оружейная', x: 215, y: 48, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
-    { id: 2, name: 'Дом 2', x: 495, y: 48, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
+    { id: 2, name: 'Кузня', x: 495, y: 48, w: 70, h: 52, door: true, color: '#90a4ae', roof: '#37474f', special: 'forge', accent: '#cfd8dc' },
     { id: 4, name: 'Дом 4', x: 635, y: 54, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
     // зелья/цветы выше — перед дверью есть проход для гномика
     { id: 8, name: 'Зелья', x: 216, y: 200, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
@@ -3827,6 +3827,18 @@
     if (classOverlay) classOverlay.classList.remove('visible');
 
     const load = starterLoadout(def.id);
+    // стартовое оружие класса в слот
+    if (def.equipment && def.equipment[0]) {
+      const we = def.equipment[0];
+      load.slots.weapon = makeItem(we.id, we.name, 'weapon', {
+        damage: we.damage || 1,
+        itemLevel: 1,
+        desc: 'Стартовое оружие'
+      });
+    }
+    // немного руды для кузни
+    load.bag.push(makeItem('ore_start_1', 'Руда', 'quest', { materialType: 'ore', desc: 'Материал для кузни', sellSilver: 1 }));
+    load.bag.push(makeItem('ore_start_2', 'Руда', 'quest', { materialType: 'ore', desc: 'Материал для кузни', sellSilver: 1 }));
     townPlayer = {
       x: 400,
       y: 130,
@@ -3837,7 +3849,7 @@
       dirX: 1,
       dirY: 0,
       classId: def.id,
-      equipment: [],
+      equipment: load.slots.weapon ? [load.slots.weapon] : [],
       slots: load.slots,
       bag: load.bag,
       skills: def.skills.map(s => Object.assign({}, s)),
@@ -3985,6 +3997,38 @@
     ctx.font = 'bold 18px Georgia, serif';
     ctx.textAlign = 'center';
     ctx.fillText(b ? b.name : 'Дом', W / 2, 78);
+
+    // кузня: наковальня, горн, кузнец за столом
+    if (b && b.special === 'forge') {
+      // горн
+      ctx.fillStyle = '#37474f';
+      ctx.fillRect(120, 200, 70, 55);
+      ctx.fillStyle = '#ff6f00';
+      ctx.beginPath();
+      ctx.ellipse(155, 215, 18, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 200, 50, 0.55)';
+      ctx.beginPath();
+      ctx.arc(155, 208, 8 + Math.sin(frame * 0.2) * 2, 0, Math.PI * 2);
+      ctx.fill();
+      // наковальня
+      ctx.fillStyle = '#607d8b';
+      ctx.fillRect(480, 230, 70, 18);
+      ctx.fillRect(500, 248, 30, 22);
+      ctx.fillStyle = '#455a64';
+      ctx.fillRect(475, 224, 80, 8);
+      // стол кузнеца
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(300, 210, 140, 50);
+      ctx.fillStyle = '#4e342e';
+      ctx.fillRect(310, 260, 12, 30);
+      ctx.fillRect(418, 260, 12, 30);
+      drawBlacksmith(370, 195);
+      ctx.fillStyle = '#fffde7';
+      ctx.font = '13px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Кузнец', 370, 280);
+    }
   }
 
   function pointInBox(mx, my, b) {
@@ -4005,6 +4049,15 @@
         }
         if (bagDropZone && pointInBox(mx, my, bagDropZone)) {
           uiHover = { kind: 'bagdrop', index: 0 };
+        }
+      }
+      if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade') {
+        for (let i = 0; i < forgeSlotBoxes.length; i++) {
+          if (pointInBox(mx, my, forgeSlotBoxes[i])) {
+            uiHover = { kind: 'forgeslot', index: i };
+            setGameCursor('grabbing');
+            return;
+          }
         }
       }
       setGameCursor('grabbing');
@@ -4049,6 +4102,22 @@
         if (pointInBox(mx, my, gearSlotBoxes[i])) {
           uiHover = { kind: 'slot', index: i };
           setGameCursor(townPlayer && townPlayer.slots[gearSlotBoxes[i].key] ? 'grab' : 'pointer');
+          return;
+        }
+      }
+    }
+    if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade') {
+      for (let i = 0; i < forgeBagBoxes.length; i++) {
+        if (pointInBox(mx, my, forgeBagBoxes[i])) {
+          uiHover = { kind: 'forgebag', index: i };
+          setGameCursor('grab');
+          return;
+        }
+      }
+      for (let i = 0; i < forgeSlotBoxes.length; i++) {
+        if (pointInBox(mx, my, forgeSlotBoxes[i])) {
+          uiHover = { kind: 'forgeslot', index: i };
+          setGameCursor(forgeSlots[forgeSlotBoxes[i].key] ? 'grab' : 'pointer');
           return;
         }
       }
@@ -4099,6 +4168,16 @@
       houseBtn(200, midY, 400, 58, 'Цветы — купить', 'shop_flowers', '#ad1457', '#f48fb1');
     } else if (sp === 'tavern') {
       houseBtn(200, midY, 400, 58, 'Таверна — ночлег', 'shop_tavern', '#4e342e', '#d7ccc8');
+    } else if (sp === 'forge') {
+      houseBtn(90, midY, 200, 52, 'Починка', 'forge_repair', '#546e7a', '#cfd8dc');
+      houseBtn(300, midY, 200, 52, 'Улучшение', 'forge_upgrade', '#ef6c00', '#ffe0b2');
+      houseBtn(510, midY, 200, 52, 'Создание', 'forge_craft', '#6a1b9a', '#e1bee7');
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(90, midY + 58, 620, 22);
+      ctx.fillStyle = '#ffe082';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Починка снаряжения · Улучшение снаряжения · Создание нового снаряжения', W / 2, midY + 73);
     }
 
     // дверь
@@ -4130,6 +4209,9 @@
       if (btn.action === 'shop_potions') { openShop('potions'); return true; }
       if (btn.action === 'shop_flowers') { openShop('flowers'); return true; }
       if (btn.action === 'shop_tavern') { openShop('tavern'); return true; }
+      if (btn.action === 'forge_repair') { openForgeMode('repair'); return true; }
+      if (btn.action === 'forge_upgrade') { openForgeMode('upgrade'); return true; }
+      if (btn.action === 'forge_craft') { openForgeMode('craft'); return true; }
       if (btn.action === 'guild_quests') { openGuildQuestsMenu(); return true; }
       return true;
     }
@@ -4145,6 +4227,7 @@
       if (row.action === 'close') {
         if (rpgUi === 'shop') { rpgUi = null; shopKind = null; }
         else if (rpgUi === 'guild_quests') rpgUi = null;
+        else if (String(rpgUi).indexOf('forge_') === 0) closeForgeUi();
         else rpgUi = null;
         return true;
       }
@@ -4152,6 +4235,20 @@
       if (rpgUi === 'shop') {
         shopFocus = row.index;
         buyShopItem();
+        return true;
+      }
+      if (rpgUi === 'forge_craft') {
+        shopFocus = row.index;
+        const recipe = FORGE_CRAFT[row.index];
+        if (recipe) tryForgeCraft(recipe);
+        return true;
+      }
+      if (rpgUi === 'forge_repair' && row.action === 'do_repair') {
+        tryForgeRepair();
+        return true;
+      }
+      if (rpgUi === 'forge_upgrade' && row.action === 'do_upgrade') {
+        tryForgeUpgrade();
         return true;
       }
       if (rpgUi === 'guild_quests') {
@@ -4308,7 +4405,7 @@
     } else if (!nearTownBuilding && !rpgUi && !messageDiv.textContent.startsWith('Получено')) {
       const t = messageDiv.textContent;
       if (t.indexOf('[E]') !== -1 || t.indexOf('закрыт') !== -1 || t.indexOf('взломан') !== -1 ||
-          t === 'Гильдия' || t === 'Цветы' || t === 'Оружейная' || t === 'Зелья' || t === 'Таверна' ||
+          t === 'Гильдия' || t === 'Цветы' || t === 'Оружейная' || t === 'Зелья' || t === 'Таверна' || t === 'Кузня' ||
           t.indexOf('Дом ') === 0) {
         messageDiv.textContent = '';
       }
@@ -4772,6 +4869,12 @@
       ctx.font = 'bold 9px Segoe UI, Arial';
       ctx.textBaseline = 'alphabetic';
       ctx.fillText('ТАВЕРНА', b.x + b.w / 2, b.y + b.h - 6);
+    }
+    if (b.special === 'forge') {
+      ctx.fillStyle = '#eceff1';
+      ctx.font = 'bold 10px Segoe UI, Arial';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('КУЗНЯ', b.x + b.w / 2, b.y + b.h - 6);
     }
   }
 
@@ -5783,18 +5886,259 @@
       slowFactor: opts.slowFactor || 0.55,
       noteText: opts.noteText || '',
       itemLevel: opts.itemLevel || 0,
-      guildLoot: !!opts.guildLoot
+      guildLoot: !!opts.guildLoot,
+      broken: !!opts.broken,
+      materialType: opts.materialType || ''
     };
   }
 
+  // --- Кузня ---
+  let forgeSlots = { weapon: null, ore: null, mat: null, out: null };
+  let forgeSlotBoxes = [];
+  let forgeBagBoxes = [];
+  let forgeMode = null; // repair | upgrade | craft
+
+  const FORGE_CRAFT = [
+    { name: 'Железный меч', slot: 'weapon', damage: 2, itemLevel: 1, ore: 2, priceSilver: 50, desc: 'Оружие · ур.1' },
+    { name: 'Боевой лук', slot: 'weapon', damage: 2, itemLevel: 1, ore: 2, priceSilver: 50, desc: 'Оружие · ур.1' },
+    { name: 'Посох ученика', slot: 'weapon', damage: 1, itemLevel: 1, ore: 2, priceSilver: 40, desc: 'Оружие · ур.1' },
+    { name: 'Стальной клинок', slot: 'weapon', damage: 4, itemLevel: 2, ore: 4, priceSilver: 120, desc: 'Оружие · ур.2' },
+    { name: 'Тяжёлый лук', slot: 'weapon', damage: 4, itemLevel: 2, ore: 4, priceSilver: 120, desc: 'Оружие · ур.2' },
+    { name: 'Кожаный доспех', slot: 'top', armor: 1, itemLevel: 1, ore: 2, priceSilver: 40, desc: 'Броня · ур.1' },
+    { name: 'Латный нагрудник', slot: 'top', armor: 3, itemLevel: 2, ore: 4, priceSilver: 100, desc: 'Броня · ур.2' },
+    { name: 'Шлем новобранца', slot: 'helmet', armor: 1, itemLevel: 1, ore: 2, priceSilver: 35, desc: 'Шлем · ур.1' },
+    { name: 'Латные штаны', slot: 'bottom', armor: 1, itemLevel: 1, ore: 2, priceSilver: 35, desc: 'Низ · ур.1' },
+    { name: 'Боевые сапоги', slot: 'boots', armor: 1, itemLevel: 1, ore: 2, priceSilver: 30, desc: 'Сапоги · ур.1' }
+  ];
+
+  function isOreItem(it) {
+    return !!(it && (it.materialType === 'ore' || (it.name && it.name.indexOf('Руда') !== -1)));
+  }
+
+  function isGearWeapon(it) {
+    return !!(it && it.slot === 'weapon');
+  }
+
+  function isForgeGear(it) {
+    return !!(it && (it.slot === 'weapon' || it.slot === 'helmet' || it.slot === 'top' ||
+      it.slot === 'bottom' || it.slot === 'boots'));
+  }
+
+  function itemLevelOf(it) {
+    return Math.max(1, (it && it.itemLevel) || 1);
+  }
+
+  function repairCostSilver(it) {
+    return 100 * Math.pow(2, itemLevelOf(it) - 1);
+  }
+
+  function upgradeCostSilver(it) {
+    return 50 * Math.pow(2, itemLevelOf(it) - 1);
+  }
+
+  function markBroken(it) {
+    if (!it || it.broken) return;
+    it.broken = true;
+    if (it._dmgBackup == null) it._dmgBackup = it.damage || 0;
+    if (it._armorBackup == null) it._armorBackup = it.armor || 0;
+    it.damage = Math.max(0, Math.floor((it._dmgBackup || it.damage || 0) * 0.3));
+    it.armor = Math.max(0, Math.floor((it._armorBackup || it.armor || 0) * 0.3));
+    if (it.name.indexOf('[Сломано]') !== 0) it.name = '[Сломано] ' + it.name;
+  }
+
+  function unmarkBroken(it) {
+    if (!it || !it.broken) return;
+    it.broken = false;
+    if (it._dmgBackup != null) it.damage = it._dmgBackup;
+    if (it._armorBackup != null) it.armor = it._armorBackup;
+    it.name = (it.name || '').replace(/^\[Сломано\]\s*/, '');
+  }
+
+  function countOreInBag() {
+    let n = 0;
+    for (let it of townPlayer.bag) if (isOreItem(it)) n++;
+    return n;
+  }
+
+  function consumeOreFromBag(n) {
+    let left = n;
+    for (let i = townPlayer.bag.length - 1; i >= 0 && left > 0; i--) {
+      if (isOreItem(townPlayer.bag[i])) {
+        townPlayer.bag.splice(i, 1);
+        left--;
+      }
+    }
+    return left === 0;
+  }
+
+  function returnForgeSlotsToBag() {
+    if (!townPlayer) return;
+    for (let k of ['weapon', 'ore', 'mat', 'out']) {
+      if (forgeSlots[k]) {
+        townPlayer.bag.push(forgeSlots[k]);
+        forgeSlots[k] = null;
+      }
+    }
+  }
+
+  function openForgeMode(mode) {
+    returnForgeSlotsToBag();
+    forgeMode = mode;
+    shopFocus = 0;
+    rpgUi = 'forge_' + mode;
+  }
+
+  function closeForgeUi() {
+    returnForgeSlotsToBag();
+    forgeMode = null;
+    rpgUi = null;
+    invDrag = null;
+  }
+
+  function drawBlacksmith(ax, ay) {
+    ctx.save();
+    ctx.translate(ax, ay);
+    // тень
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(0, 22, 16, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // фартук / тело
+    ctx.fillStyle = '#546e7a';
+    ctx.fillRect(-12, 0, 24, 18);
+    ctx.fillStyle = '#37474f';
+    ctx.fillRect(-10, 4, 20, 12);
+    // руки
+    ctx.fillStyle = '#d7a77a';
+    ctx.fillRect(-16, 2, 5, 12);
+    ctx.fillRect(11, 2, 5, 12);
+    // голова
+    ctx.fillStyle = '#e8b88a';
+    ctx.beginPath();
+    ctx.arc(0, -8, 8, 0, Math.PI * 2);
+    ctx.fill();
+    // борода
+    ctx.fillStyle = '#6d4c41';
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.quadraticCurveTo(0, 10, 6, -4);
+    ctx.fill();
+    // волосы
+    ctx.fillStyle = '#5d4037';
+    ctx.beginPath();
+    ctx.ellipse(0, -12, 8, 4, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    // глаза
+    ctx.fillStyle = '#212121';
+    ctx.fillRect(-3.5, -9, 2, 2);
+    ctx.fillRect(1.5, -9, 2, 2);
+    // молот
+    ctx.fillStyle = '#90a4ae';
+    ctx.fillRect(14, -6, 10, 6);
+    ctx.fillStyle = '#5d4037';
+    ctx.fillRect(17, 0, 3, 12);
+    ctx.restore();
+  }
+
+  function forgeRepairPrice() {
+    const w = forgeSlots.weapon;
+    if (!w) return 100;
+    return repairCostSilver(w);
+  }
+
+  function tryForgeRepair() {
+    const w = forgeSlots.weapon;
+    const ore = forgeSlots.ore;
+    if (!w) { messageDiv.textContent = 'Положи сломанное оружие'; return; }
+    if (!isGearWeapon(w)) { messageDiv.textContent = 'Нужно оружие'; return; }
+    if (!w.broken) { messageDiv.textContent = 'Оружие целое — ремонт не нужен'; return; }
+    if (!isOreItem(ore)) { messageDiv.textContent = 'Нужна руда'; return; }
+    if (forgeSlots.out) { messageDiv.textContent = 'Забери готовое оружие из ячейки'; return; }
+    const cost = repairCostSilver(w);
+    if (getTotalCopper(townPlayer) < cost * 100) {
+      messageDiv.textContent = 'Нужно ' + cost + '⚪';
+      return;
+    }
+    addMoney(0, -cost, 0);
+    const fixed = Object.assign({}, w);
+    unmarkBroken(fixed);
+    forgeSlots.weapon = null;
+    forgeSlots.ore = null;
+    forgeSlots.out = fixed;
+    messageDiv.textContent = 'Починено: ' + fixed.name + ' (−' + cost + '⚪)';
+    updateUI();
+  }
+
+  function tryForgeUpgrade() {
+    const w = forgeSlots.weapon;
+    if (!w || !isForgeGear(w)) { messageDiv.textContent = 'Положи снаряжение'; return; }
+    if (w.broken) { messageDiv.textContent = 'Сначала почини'; return; }
+    if (!isOreItem(forgeSlots.ore) || !isOreItem(forgeSlots.mat)) {
+      messageDiv.textContent = 'Нужны 2 руды в ячейках';
+      return;
+    }
+    if (forgeSlots.out) { messageDiv.textContent = 'Забери результат'; return; }
+    const cost = upgradeCostSilver(w);
+    if (getTotalCopper(townPlayer) < cost * 100) {
+      messageDiv.textContent = 'Нужно ' + cost + '⚪';
+      return;
+    }
+    addMoney(0, -cost, 0);
+    const up = Object.assign({}, w);
+    up.itemLevel = itemLevelOf(up) + 1;
+    if (up.slot === 'weapon') {
+      up.damage = (up.damage || 0) + 1;
+      up._dmgBackup = up.damage;
+    } else {
+      up.armor = (up.armor || 0) + 1;
+      up._armorBackup = up.armor;
+    }
+    up.name = (up.name || '').replace(/\s*·\s*ур\.\d+/, '') + ' · ур.' + up.itemLevel;
+    up.desc = (up.desc || '') + ' · улучшено';
+    forgeSlots.weapon = null;
+    forgeSlots.ore = null;
+    forgeSlots.mat = null;
+    forgeSlots.out = up;
+    messageDiv.textContent = 'Улучшено до ур.' + up.itemLevel + ' (−' + cost + '⚪)';
+    updateUI();
+  }
+
+  function tryForgeCraft(recipe) {
+    if (!recipe || !townPlayer) return;
+    if (countOreInBag() < recipe.ore) {
+      messageDiv.textContent = 'Нужно руды: ' + recipe.ore;
+      return;
+    }
+    if (getTotalCopper(townPlayer) < (recipe.priceSilver || 0) * 100) {
+      messageDiv.textContent = 'Нужно ' + recipe.priceSilver + '⚪';
+      return;
+    }
+    consumeOreFromBag(recipe.ore);
+    addMoney(0, -(recipe.priceSilver || 0), 0);
+    const it = makeItem(
+      'craft_' + recipe.slot + '_' + frame,
+      recipe.name,
+      recipe.slot,
+      {
+        damage: recipe.damage || 0,
+        armor: recipe.armor || 0,
+        itemLevel: recipe.itemLevel || 1,
+        desc: recipe.desc || ''
+      }
+    );
+    townPlayer.bag.push(it);
+    messageDiv.textContent = 'Создано: ' + it.name;
+    updateUI();
+  }
+
   const WEAPON_SHOP = [
-    { name: 'Железный меч', slot: 'weapon', damage: 2, priceSilver: 3, desc: 'Оружие · 2 урона' },
-    { name: 'Боевой лук', slot: 'weapon', damage: 2, priceSilver: 3, desc: 'Оружие · 2 урона' },
-    { name: 'Посох ученика', slot: 'weapon', damage: 1, priceSilver: 2, desc: 'Для мага' },
-    { name: 'Кожаный доспех', slot: 'top', armor: 1, priceSilver: 2, desc: 'Верх · +1 броня' },
-    { name: 'Латные штаны', slot: 'bottom', armor: 1, priceSilver: 2, desc: 'Низ · +1 броня' },
-    { name: 'Боевые сапоги', slot: 'boots', armor: 1, priceSilver: 1, desc: 'Ботинки · +1 броня' },
-    { name: 'Шлем новобранца', slot: 'helmet', armor: 1, priceSilver: 2, desc: 'Шлем · +1 броня' }
+    { name: 'Железный меч', slot: 'weapon', damage: 2, itemLevel: 1, priceSilver: 3, desc: 'Оружие · 2 урона' },
+    { name: 'Боевой лук', slot: 'weapon', damage: 2, itemLevel: 1, priceSilver: 3, desc: 'Оружие · 2 урона' },
+    { name: 'Посох ученика', slot: 'weapon', damage: 1, itemLevel: 1, priceSilver: 2, desc: 'Для мага' },
+    { name: 'Кожаный доспех', slot: 'top', armor: 1, itemLevel: 1, priceSilver: 2, desc: 'Верх · +1 броня' },
+    { name: 'Латные штаны', slot: 'bottom', armor: 1, itemLevel: 1, priceSilver: 2, desc: 'Низ · +1 броня' },
+    { name: 'Боевые сапоги', slot: 'boots', armor: 1, itemLevel: 1, priceSilver: 1, desc: 'Ботинки · +1 броня' },
+    { name: 'Шлем новобранца', slot: 'helmet', armor: 1, itemLevel: 1, priceSilver: 2, desc: 'Шлем · +1 броня' }
   ];
 
   const POTION_SHOP = [
@@ -6438,7 +6782,8 @@
         armor: entry.armor || 0,
         heal: entry.heal || 0,
         desc: entry.desc || '',
-        manaHeal: entry.mana || 0
+        manaHeal: entry.mana || 0,
+        itemLevel: entry.itemLevel || (entry.slot === 'weapon' || entry.armor ? 1 : 0)
       }
     );
     if (entry.mana) item.manaHeal = entry.mana;
@@ -6546,9 +6891,218 @@
   function closeRpgUi() {
     if (rpgUi === 'levelup') return;
     if (readingNote) { readingNote = null; return; }
+    if (String(rpgUi).indexOf('forge_') === 0) {
+      closeForgeUi();
+      return;
+    }
     rpgUi = null;
     shopKind = null;
     invDrag = null;
+  }
+
+  function drawForgeSlotBox(box, label, item, hover) {
+    ctx.fillStyle = hover ? '#5d4037' : '#263238';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.strokeStyle = hover ? '#fff59d' : '#90a4ae';
+    ctx.lineWidth = hover ? 3 : 2;
+    ctx.strokeRect(box.x + 0.5, box.y + 0.5, box.w - 1, box.h - 1);
+    ctx.fillStyle = '#90a4ae';
+    ctx.font = '11px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, box.x + box.w / 2, box.y - 6);
+    if (item) {
+      ctx.fillStyle = item.broken ? '#ef9a9a' : '#fffde7';
+      ctx.font = 'bold 12px Segoe UI, Arial';
+      const nm = item.name.length > 14 ? item.name.slice(0, 13) + '…' : item.name;
+      ctx.fillText(nm, box.x + box.w / 2, box.y + box.h / 2 + 4);
+    } else {
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.font = '22px Segoe UI, Arial';
+      ctx.fillText('+', box.x + box.w / 2, box.y + box.h / 2 + 7);
+    }
+  }
+
+  function drawForgeBagList(filterFn) {
+    forgeBagBoxes = [];
+    ctx.fillStyle = 'rgba(30,40,60,0.9)';
+    ctx.fillRect(40, 70, 200, 320);
+    ctx.strokeStyle = '#78909c';
+    ctx.strokeRect(40, 70, 200, 320);
+    ctx.fillStyle = '#ffe082';
+    ctx.font = 'bold 13px Segoe UI, Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('Мешок', 50, 92);
+    let y = 105;
+    let shown = 0;
+    for (let i = 0; i < townPlayer.bag.length; i++) {
+      const it = townPlayer.bag[i];
+      if (filterFn && !filterFn(it)) continue;
+      if (shown >= 8) break;
+      const box = { x: 50, y: y, w: 180, h: 32, index: i };
+      forgeBagBoxes.push(box);
+      const hv = uiHover && uiHover.kind === 'forgebag' && uiHover.index === forgeBagBoxes.length - 1;
+      ctx.fillStyle = hv ? '#ff8f00' : '#37474f';
+      ctx.fillRect(box.x, box.y, box.w, box.h);
+      ctx.strokeStyle = hv ? '#fff59d' : '#546e7a';
+      ctx.strokeRect(box.x, box.y, box.w, box.h);
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(it.name.slice(0, 18), 58, y + 20);
+      y += 36;
+      shown++;
+    }
+    if (!shown) {
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.fillText('Нет подходящих', 55, 130);
+    }
+  }
+
+  function drawForgePanel() {
+    menuHitBoxes = [];
+    forgeSlotBoxes = [];
+    forgeBagBoxes = [];
+
+    ctx.fillStyle = '#1a1510';
+    ctx.fillRect(30, 25, 740, 400);
+    ctx.strokeStyle = '#ff8f00';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(30, 25, 740, 400);
+
+    const titles = {
+      forge_repair: 'Починка снаряжения',
+      forge_upgrade: 'Улучшение снаряжения',
+      forge_craft: 'Создание нового снаряжения'
+    };
+    ctx.fillStyle = '#ffb74d';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(titles[rpgUi] || 'Кузня', W / 2, 55);
+    ctx.fillStyle = '#ffe082';
+    ctx.font = '13px Segoe UI, Arial';
+    ctx.fillText('🟤' + (townPlayer.copper || 0) + '  ⚪' + (townPlayer.silver || 0) + '  🟡' + (townPlayer.gold || 0), W / 2, 78);
+
+    if (rpgUi === 'forge_craft') {
+      drawForgeBagList(isOreItem);
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Руда в мешке: ' + countOreInBag(), 50, 400);
+
+      let y = 100;
+      for (let i = 0; i < FORGE_CRAFT.length; i++) {
+        const r = FORGE_CRAFT[i];
+        menuHitBoxes.push({ x: 270, y: y, w: 460, h: 28, index: i });
+        const hv = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
+        ctx.fillStyle = hv ? '#6a1b9a' : '#37474f';
+        ctx.fillRect(270, y, 460, 28);
+        ctx.strokeStyle = hv ? '#fff59d' : '#546e7a';
+        ctx.strokeRect(270, y, 460, 28);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Segoe UI, Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText(r.name + '  ·  ур.' + r.itemLevel, 280, y + 12);
+        ctx.fillStyle = '#b0bec5';
+        ctx.font = '11px Segoe UI, Arial';
+        ctx.fillText((r.desc || '') + '  ·  руда×' + r.ore + '  ·  ' + r.priceSilver + '⚪', 280, y + 24);
+        y += 32;
+      }
+    } else if (rpgUi === 'forge_repair') {
+      drawForgeBagList(function (it) { return isGearWeapon(it) || isOreItem(it); });
+      const sw = 90, sh = 70;
+      const slots = [
+        { key: 'weapon', x: 300, y: 160, label: 'Оружие' },
+        { key: 'ore', x: 420, y: 160, label: 'Руда' },
+        { key: 'out', x: 560, y: 160, label: 'Цельное' }
+      ];
+      for (let i = 0; i < slots.length; i++) {
+        const s = slots[i];
+        const box = { key: s.key, x: s.x, y: s.y, w: sw, h: sh };
+        forgeSlotBoxes.push(box);
+        const hv = uiHover && uiHover.kind === 'forgeslot' && uiHover.index === i;
+        drawForgeSlotBox(box, s.label, forgeSlots[s.key], hv);
+      }
+      ctx.fillStyle = '#fff';
+      ctx.font = '28px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('→', 525, 205);
+
+      const cost = forgeRepairPrice();
+      menuHitBoxes.push({ x: 340, y: 280, w: 220, h: 44, index: -2, action: 'do_repair' });
+      const btnH = uiHover && uiHover.kind === 'menu' && uiHover.index === menuHitBoxes.length - 1;
+      ctx.fillStyle = btnH ? '#ffb300' : '#ef6c00';
+      ctx.fillRect(340, 280, 220, 44);
+      ctx.strokeStyle = '#ffe082';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(340, 280, 220, 44);
+      ctx.fillStyle = '#212121';
+      ctx.font = 'bold 15px Segoe UI, Arial';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Починить · ' + cost + '⚪', 450, 302);
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.fillText('Ур.1 = 100⚪ · каждый следующий уровень ×2', W / 2, 350);
+      ctx.fillText('Перетащи оружие и руду мышкой', W / 2, 370);
+    } else if (rpgUi === 'forge_upgrade') {
+      drawForgeBagList(function (it) { return isForgeGear(it) || isOreItem(it); });
+      const sw = 90, sh = 70;
+      const slots = [
+        { key: 'weapon', x: 280, y: 150, label: 'Снаряжение' },
+        { key: 'ore', x: 400, y: 150, label: 'Руда 1' },
+        { key: 'mat', x: 520, y: 150, label: 'Руда 2' }
+      ];
+      for (let i = 0; i < slots.length; i++) {
+        const s = slots[i];
+        const box = { key: s.key, x: s.x, y: s.y, w: sw, h: sh };
+        forgeSlotBoxes.push(box);
+        const hv = uiHover && uiHover.kind === 'forgeslot' && uiHover.index === i;
+        drawForgeSlotBox(box, s.label, forgeSlots[s.key], hv);
+      }
+      // выход
+      const outBox = { key: 'out', x: 400, y: 250, w: 90, h: 60 };
+      forgeSlotBoxes.push(outBox);
+      drawForgeSlotBox(outBox, 'Результат', forgeSlots.out, uiHover && uiHover.kind === 'forgeslot' && uiHover.index === 3);
+
+      const cost = forgeSlots.weapon ? upgradeCostSilver(forgeSlots.weapon) : 50;
+      menuHitBoxes.push({ x: 520, y: 260, w: 180, h: 40, index: -2, action: 'do_upgrade' });
+      const btnH = uiHover && uiHover.kind === 'menu' && uiHover.index === menuHitBoxes.length - 1;
+      ctx.fillStyle = btnH ? '#ffb300' : '#ef6c00';
+      ctx.fillRect(520, 260, 180, 40);
+      ctx.fillStyle = '#212121';
+      ctx.font = 'bold 14px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Улучшить · ' + cost + '⚪', 610, 280);
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = '#b0bec5';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.fillText('3 ячейки: вещь + 2 руды → +1 уровень', W / 2, 360);
+    }
+
+    menuHitBoxes.push({ x: 330, y: 390, w: 140, h: 28, index: -1, action: 'close' });
+    const closeH = uiHover && uiHover.kind === 'menu' && uiHover.index === menuHitBoxes.length - 1;
+    ctx.fillStyle = closeH ? '#ef5350' : '#c62828';
+    ctx.fillRect(330, 390, 140, 28);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Закрыть', W / 2, 404);
+    ctx.textBaseline = 'alphabetic';
+
+    if (invDrag && invDrag.mx != null && (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade')) {
+      ctx.fillStyle = 'rgba(255, 253, 231, 0.95)';
+      ctx.strokeStyle = '#ffd54f';
+      ctx.lineWidth = 2;
+      ctx.fillRect(invDrag.mx - 40, invDrag.my - 14, 80, 28);
+      ctx.strokeRect(invDrag.mx - 40, invDrag.my - 14, 80, 28);
+      ctx.fillStyle = '#333';
+      ctx.font = '11px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText((invDrag.item.name || '').slice(0, 12), invDrag.mx, invDrag.my + 4);
+    }
   }
 
   function openNote(item) {
@@ -7007,6 +7561,11 @@
       ctx.textBaseline = 'middle';
       ctx.fillText('Закрыть', W / 2, 374);
       ctx.textBaseline = 'alphabetic';
+      return;
+    }
+
+    if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade' || rpgUi === 'forge_craft') {
+      drawForgePanel();
       return;
     }
 
@@ -7634,9 +8193,9 @@
     fieldNodes = [
       { x: 180, y: 160, kind: 'herb', name: 'Трава', taken: false },
       { x: 320, y: 280, kind: 'wood', name: 'Ветка', taken: false },
-      { x: 480, y: 150, kind: 'stone', name: 'Камень', taken: false },
-      { x: 560, y: 300, kind: 'herb', name: 'Цветок', taken: false },
-      { x: 250, y: 350, kind: 'wood', name: 'Кора', taken: false }
+      { x: 480, y: 150, kind: 'ore', name: 'Руда', taken: false },
+      { x: 560, y: 300, kind: 'ore', name: 'Руда', taken: false },
+      { x: 250, y: 350, kind: 'ore', name: 'Руда', taken: false }
     ];
     messageDiv.textContent = 'Подойди и нажми E — собрать';
   }
@@ -7711,6 +8270,11 @@
     townPlayer.hp -= real;
     invulnTimer = 45;
     messageDiv.textContent = '−' + real + ' HP';
+    // шанс сломать экипированное оружие
+    if (townPlayer.slots && townPlayer.slots.weapon && !townPlayer.slots.weapon.broken && Math.random() < 0.12) {
+      markBroken(townPlayer.slots.weapon);
+      messageDiv.textContent = '−' + real + ' HP · оружие сломалось!';
+    }
     if (townPlayer.hp <= 0) {
       townPlayer.hp = townPlayer.maxHp;
       messageDiv.textContent = 'Поражение... возврат на поляну';
@@ -7886,12 +8450,21 @@
       if (n.taken) continue;
       if (Math.hypot(p.x + p.w / 2 - n.x, p.y + p.h / 2 - n.y) < 28) {
         n.taken = true;
-        townPlayer.bag.push(makeItem(
-          'res_' + n.kind + '_' + frame,
-          n.name + ' (ресурс)',
-          'quest',
-          { desc: 'Для заданий / крафта' }
-        ));
+        if (n.kind === 'ore') {
+          townPlayer.bag.push(makeItem(
+            'ore_' + frame,
+            'Руда',
+            'quest',
+            { materialType: 'ore', desc: 'Материал для кузни', sellSilver: 1 }
+          ));
+        } else {
+          townPlayer.bag.push(makeItem(
+            'res_' + n.kind + '_' + frame,
+            n.name + ' (ресурс)',
+            'quest',
+            { desc: 'Для заданий / крафта' }
+          ));
+        }
         messageDiv.textContent = 'Собрано: ' + n.name;
         return true;
       }
@@ -8103,13 +8676,46 @@
       return;
     }
 
-    // 2) меню магазина / заданий / левелапа
+    // 2) меню магазина / заданий / левелапа / кузни
     if (rpgUi && rpgUi !== 'gear') {
       if (rpgUi === 'guild_welcome') {
         guildWelcomeLine++;
         if (guildWelcomeLine >= GUILD_WELCOME_LINES.length) rpgUi = null;
         ev.preventDefault();
         return;
+      }
+      // кузня — старт перетаскивания из мешка / ячеек
+      if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade') {
+        for (let b of forgeBagBoxes) {
+          if (hitBox(p.x, p.y, b)) {
+            const it = townPlayer.bag[b.index];
+            if (!it) break;
+            invDrag = {
+              item: it,
+              fromBagIndex: b.index,
+              fromForgeKey: null,
+              fromSlotKey: null,
+              mx: p.x,
+              my: p.y
+            };
+            ev.preventDefault();
+            return;
+          }
+        }
+        for (let s of forgeSlotBoxes) {
+          if (hitBox(p.x, p.y, s) && forgeSlots[s.key]) {
+            invDrag = {
+              item: forgeSlots[s.key],
+              fromBagIndex: null,
+              fromForgeKey: s.key,
+              fromSlotKey: null,
+              mx: p.x,
+              my: p.y
+            };
+            ev.preventDefault();
+            return;
+          }
+        }
       }
       if (handleMenuUiClick(p.x, p.y)) {
         ev.preventDefault();
@@ -8166,6 +8772,56 @@
     }
   });
 
+  function tryPlaceForgeDrag(mx, my) {
+    if (!invDrag || !townPlayer) return false;
+    if (rpgUi !== 'forge_repair' && rpgUi !== 'forge_upgrade') return false;
+
+    for (let s of forgeSlotBoxes) {
+      if (!hitBox(mx, my, s)) continue;
+      const key = s.key;
+      const it = invDrag.item;
+      // правила слотов
+      if (key === 'weapon') {
+        if (rpgUi === 'forge_repair' && !isGearWeapon(it)) {
+          messageDiv.textContent = 'Сюда только оружие';
+          return true;
+        }
+        if (rpgUi === 'forge_upgrade' && !isForgeGear(it)) {
+          messageDiv.textContent = 'Сюда снаряжение';
+          return true;
+        }
+      }
+      if ((key === 'ore' || key === 'mat') && !isOreItem(it)) {
+        messageDiv.textContent = 'Сюда только руда';
+        return true;
+      }
+      // out можно только забирать, не класть чужое (кроме перестановки)
+      if (key === 'out' && invDrag.fromForgeKey !== 'out') {
+        messageDiv.textContent = 'Сюда попадает результат ремонта/улучшения';
+        return true;
+      }
+
+      const prev = forgeSlots[key];
+      // убрать источник
+      if (invDrag.fromBagIndex != null) {
+        townPlayer.bag.splice(invDrag.fromBagIndex, 1);
+        if (prev) townPlayer.bag.push(prev);
+      } else if (invDrag.fromForgeKey) {
+        forgeSlots[invDrag.fromForgeKey] = prev || null;
+      }
+      forgeSlots[key] = it;
+      return true;
+    }
+
+    // дроп обратно в мешок (из ячейки кузни)
+    if (invDrag.fromForgeKey && mx >= 40 && mx <= 240 && my >= 70 && my <= 390) {
+      townPlayer.bag.push(invDrag.item);
+      forgeSlots[invDrag.fromForgeKey] = null;
+      return true;
+    }
+    return false;
+  }
+
   canvas.addEventListener('mouseup', ev => {
     if (!invDrag || !townPlayer) {
       invDrag = null;
@@ -8175,6 +8831,14 @@
     }
     const p = canvasPos(ev);
     let dropped = false;
+
+    if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade') {
+      dropped = tryPlaceForgeDrag(p.x, p.y);
+      invDrag = null;
+      updateUiHover(p.x, p.y);
+      return;
+    }
+
     for (let s of gearSlotBoxes) {
       if (hitBox(p.x, p.y, s)) {
         tryMoveItemToSlot(invDrag.item, invDrag.fromBagIndex, invDrag.fromSlotKey, s.key);
