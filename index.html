@@ -5521,8 +5521,77 @@
       ctx.fillStyle = '#5d4037';
       ctx.fillRect(tx - 2, ty - 2, 4, 8);
     }
-    tree(60, 80, false); tree(140, 70, true); tree(700, 80, false);
-    tree(760, 160, false); tree(50, 300, true); tree(170, 360, false);
+
+    // куст (как под цифрой 1/2 на схеме)
+    function bush(bx, by, scale) {
+      scale = scale || 1;
+      const r = 11 * scale;
+      ctx.fillStyle = '#1b5e20';
+      ctx.beginPath();
+      ctx.arc(bx - 5 * scale, by - 2 * scale, r * 0.75, 0, Math.PI * 2);
+      ctx.arc(bx + 5 * scale, by - 2 * scale, r * 0.75, 0, Math.PI * 2);
+      ctx.arc(bx, by - 8 * scale, r * 0.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#43a047';
+      ctx.beginPath();
+      ctx.arc(bx - 3 * scale, by - 6 * scale, r * 0.45, 0, Math.PI * 2);
+      ctx.arc(bx + 4 * scale, by - 5 * scale, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // деревья по краям
+    tree(60, 80, false);
+    tree(140, 70, true);
+    tree(700, 80, false);
+    tree(760, 160, false);
+    tree(50, 300, true);
+
+    // 1) куст с дороги у таверны/дома 10 — перенесён вверх в траву
+    bush(120, 255, 1.05);
+
+    // 2) копии куста по пустым газонам (как стрелки на схеме)
+    // верхний левый угол / над домом 9
+    bush(40, 45, 1);
+    bush(165, 40, 0.9);
+    // между домом 9 и оружейной
+    bush(175, 95, 0.85);
+    // под домом 9 / над зельями
+    bush(100, 165, 1);
+    bush(155, 175, 0.8);
+    // у зелий слева
+    bush(175, 245, 0.9);
+    // правый верх / у дома 4 и кузни
+    bush(760, 55, 1);
+    bush(720, 100, 0.9);
+    bush(605, 95, 0.85);
+    bush(680, 165, 1);
+    // под домом 4 / справа от цветов
+    bush(720, 230, 0.95);
+    bush(650, 245, 0.85);
+    // между цветами и домом 6
+    bush(560, 265, 0.9);
+    // между домами 6 и 5
+    bush(590, 320, 0.85);
+    bush(700, 320, 0.9);
+    // под домом 5
+    bush(750, 360, 1);
+    // слева внизу у дома 10 (не на дороге)
+    bush(40, 250, 0.9);
+    bush(55, 360, 0.95);
+    // между таверной и домом 6 — чуть в траве у фонтана снизу
+    bush(340, 320, 0.75);
+    bush(460, 320, 0.75);
+
+    // доп. травяные пятна
+    ctx.fillStyle = '#66bb6a';
+    const grassPatches = [
+      [45, 120], [95, 200], [180, 130], [310, 95], [480, 95],
+      [620, 130], [740, 200], [70, 330], [300, 370], [520, 370], [700, 280]
+    ];
+    for (let g of grassPatches) {
+      ctx.fillRect(g[0], g[1], 16 + (g[0] % 7), 9);
+      ctx.fillRect(g[0] + 10, g[1] + 6, 12, 7);
+    }
 
     function lamp(lx, ly) {
       ctx.fillStyle = '#212121';
