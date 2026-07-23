@@ -3808,6 +3808,7 @@
   let fieldSlimes = [];
   let fieldDrops = [];
   let fieldNodes = [];
+  let zoneObstacles = []; // препятствия в RPG-зонах: {x,y,w,h,kind}
   let dungeonLevel = 1;
   let dungeonChest = null;
   let dungeonCleared = false;
@@ -3953,6 +3954,7 @@
     fieldSlimes = [];
     fieldDrops = [];
     fieldNodes = [];
+    zoneObstacles = [];
     pendingLevelUps = 0;
     levelUpChoices = [];
     townNpcs = [];
@@ -6794,6 +6796,7 @@
     fieldDrops = [];
     invulnTimer = 40;
     fieldSlimes = [];
+    spawnCombatObstacles('guild');
     for (let i = 0; i < 6; i++) {
       fieldSlimes.push({
         x: 180 + (i % 3) * 160,
@@ -6808,6 +6811,7 @@
         goblin: true
       });
     }
+    unstickFromObstacles(fieldSlimes);
     messageDiv.textContent = 'Зачисти гоблинов, затем появится босс';
   }
 
@@ -6827,6 +6831,7 @@
       goblin: true,
       boss: true
     };
+    unstickFromObstacles([guildDungeonBoss]);
     guildDungeonPhase = 'boss';
     messageDiv.textContent = 'Большой гоблин · ур.50! Урон ≈ ' + dmg;
   }
@@ -6851,9 +6856,7 @@
   function updateGuildDungeon() {
     if (invulnTimer > 0) invulnTimer--;
     regenMana();
-    moveRpgActor(function (nx, ny, nw, nh) {
-      return softBound(nx, ny, nw, nh);
-    });
+    moveRpgActor(zoneSolidAt);
     const targets = fieldSlimes.slice();
     if (guildDungeonBoss && guildDungeonBoss.alive) targets.push(guildDungeonBoss);
     updateProjectilesAndSkills(targets);
@@ -6865,11 +6868,10 @@
     for (let s of fieldSlimes) {
       if (!s.alive) continue;
       s.bob += 0.1;
+      moveMobToward(s, pcx, pcy, zoneSolidAt);
       const dx = pcx - (s.x + s.w / 2);
       const dy = pcy - (s.y + s.h / 2);
       const d = Math.hypot(dx, dy) || 1;
-      s.x += (dx / d) * s.speed;
-      s.y += (dy / d) * s.speed;
       if (s.atkCd > 0) s.atkCd--;
       if (d < 22 && s.atkCd <= 0) {
         hurtPlayer(1);
@@ -6885,11 +6887,10 @@
       const b = guildDungeonBoss;
       if (b.alive) {
         b.bob += 0.06;
+        moveMobToward(b, pcx, pcy, zoneSolidAt);
         const dx = pcx - (b.x + b.w / 2);
         const dy = pcy - (b.y + b.h / 2);
         const d = Math.hypot(dx, dy) || 1;
-        b.x += (dx / d) * b.speed;
-        b.y += (dy / d) * b.speed;
         if (b.atkCd > 0) b.atkCd--;
         if (d < 36 && b.atkCd <= 0) {
           hurtPlayer(b.damage);
@@ -6948,6 +6949,7 @@
     ctx.font = '14px Segoe UI, Arial';
     ctx.textAlign = 'left';
     ctx.fillText('← поляна   Данж заданий гильдии · гоблины', 50, 28);
+    drawZoneObstacles();
     for (let s of fieldSlimes) if (s.alive) drawGoblin(s);
     if (guildDungeonBoss && guildDungeonBoss.alive) drawGoblin(guildDungeonBoss);
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
@@ -8350,6 +8352,7 @@
     if (from === 'gather') townPlayer.x = 500;
     if (from === 'guild') townPlayer.y = 120;
     townProjectiles = [];
+    clearZoneObstacles();
     messageDiv.textContent = 'Куда пойти?';
     setTimeout(() => { if (messageDiv.textContent === 'Куда пойти?') messageDiv.textContent = ''; }, 2000);
   }
@@ -8390,6 +8393,7 @@
     fieldDrops = [];
     invulnTimer = 40;
     fieldSlimes = [];
+    spawnCombatObstacles('slimes');
     for (let i = 0; i < 5; i++) {
       fieldSlimes.push({
         x: 120 + i * 130 + rand(-20, 20),
@@ -8402,6 +8406,7 @@
         bob: rand(0, Math.PI * 2)
       });
     }
+    unstickFromObstacles(fieldSlimes);
     messageDiv.textContent = 'Слизни! Ядра падают на землю — подбери их';
   }
 
@@ -8417,6 +8422,7 @@
     fieldDrops = [];
     invulnTimer = 30;
     fieldSlimes = [];
+    spawnCombatObstacles('dungeon');
     const n = 3 + dungeonLevel;
     for (let i = 0; i < n; i++) {
       fieldSlimes.push({
@@ -8432,6 +8438,7 @@
         kind: 'dungeon'
       });
     }
+    unstickFromObstacles(fieldSlimes);
     spawnDungeonChest();
     messageDiv.textContent = 'Данж · этаж ' + dungeonLevel + (dungeonChest ? ' · сундук справа [E]' : '');
   }
@@ -8558,6 +8565,228 @@
     return nx < 10 || ny < 10 || nx + nw > W - 10 || ny + nh > H - 10;
   }
 
+  function zoneSolidAt(nx, ny, nw, nh) {
+    if (softBound(nx, ny, nw, nh)) return true;
+    for (let o of zoneObstacles) {
+      if (rectCollide({ x: nx, y: ny, w: nw, h: nh }, o)) return true;
+    }
+    return false;
+  }
+
+  function clearZoneObstacles() {
+    zoneObstacles = [];
+  }
+
+  function spawnCombatObstacles(mode) {
+    clearZoneObstacles();
+    if (mode === 'slimes') {
+      zoneObstacles = [
+        { x: 170, y: 170, w: 54, h: 42, kind: 'rock' },
+        { x: 360, y: 300, w: 60, h: 46, kind: 'rock' },
+        { x: 540, y: 180, w: 50, h: 50, kind: 'rock' },
+        { x: 280, y: 220, w: 72, h: 34, kind: 'log' },
+        { x: 620, y: 320, w: 56, h: 40, kind: 'rock' }
+      ];
+    } else if (mode === 'dungeon') {
+      zoneObstacles = [
+        { x: 240, y: 110, w: 38, h: 130, kind: 'pillar' },
+        { x: 430, y: 180, w: 38, h: 150, kind: 'pillar' },
+        { x: 330, y: 290, w: 110, h: 34, kind: 'crate' },
+        { x: 580, y: 100, w: 42, h: 110, kind: 'pillar' },
+        { x: 160, y: 300, w: 70, h: 36, kind: 'crate' }
+      ];
+    } else if (mode === 'guild') {
+      zoneObstacles = [
+        { x: 210, y: 90, w: 36, h: 110, kind: 'pillar' },
+        { x: 390, y: 210, w: 90, h: 38, kind: 'crate' },
+        { x: 550, y: 110, w: 36, h: 120, kind: 'pillar' },
+        { x: 280, y: 320, w: 130, h: 36, kind: 'crate' },
+        { x: 480, y: 300, w: 50, h: 50, kind: 'rock' }
+      ];
+    }
+  }
+
+  function drawZoneObstacles() {
+    for (let o of zoneObstacles) {
+      if (o.kind === 'pillar') {
+        ctx.fillStyle = '#546e7a';
+        ctx.fillRect(o.x, o.y, o.w, o.h);
+        ctx.fillStyle = '#78909c';
+        ctx.fillRect(o.x + 3, o.y + 4, o.w - 6, 10);
+        ctx.fillStyle = '#37474f';
+        ctx.fillRect(o.x - 4, o.y + o.h - 8, o.w + 8, 10);
+      } else if (o.kind === 'crate') {
+        ctx.fillStyle = '#8d6e63';
+        ctx.fillRect(o.x, o.y, o.w, o.h);
+        ctx.strokeStyle = '#5d4037';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(o.x + 1, o.y + 1, o.w - 2, o.h - 2);
+        ctx.beginPath();
+        ctx.moveTo(o.x, o.y);
+        ctx.lineTo(o.x + o.w, o.y + o.h);
+        ctx.moveTo(o.x + o.w, o.y);
+        ctx.lineTo(o.x, o.y + o.h);
+        ctx.stroke();
+      } else if (o.kind === 'log') {
+        ctx.fillStyle = '#6d4c41';
+        ctx.fillRect(o.x, o.y + 6, o.w, o.h - 10);
+        ctx.fillStyle = '#a1887f';
+        ctx.beginPath();
+        ctx.ellipse(o.x + 4, o.y + o.h / 2, 6, o.h / 2 - 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(o.x + o.w - 4, o.y + o.h / 2, 6, o.h / 2 - 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // rock
+        ctx.fillStyle = '#78909c';
+        ctx.beginPath();
+        ctx.ellipse(o.x + o.w / 2, o.y + o.h / 2, o.w / 2, o.h / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#90a4ae';
+        ctx.beginPath();
+        ctx.ellipse(o.x + o.w * 0.4, o.y + o.h * 0.4, o.w * 0.22, o.h * 0.18, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#546e7a';
+        ctx.beginPath();
+        ctx.ellipse(o.x + o.w * 0.65, o.y + o.h * 0.6, o.w * 0.18, o.h * 0.14, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Следующая клетка пути к цели в обход препятствий (BFS)
+  function zonePathNextStep(m, tx, ty, solidFn) {
+    const cell = 20;
+    const egx = Math.floor((m.x + m.w / 2) / cell);
+    const egy = Math.floor((m.y + m.h / 2) / cell);
+    const pgx = Math.floor(tx / cell);
+    const pgy = Math.floor(ty / cell);
+    if (egx === pgx && egy === pgy) return null;
+
+    const key = (x, y) => x + ',' + y;
+    const cols = Math.ceil(W / cell);
+    const rows = Math.ceil(H / cell);
+    const isFree = (cx, cy) => {
+      if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return false;
+      if (cx === pgx && cy === pgy) return true;
+      const px = cx * cell + (cell - m.w) / 2;
+      const py = cy * cell + (cell - m.h) / 2;
+      return !solidFn(px, py, m.w, m.h);
+    };
+
+    const q = [[egx, egy]];
+    const came = {};
+    came[key(egx, egy)] = null;
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    let found = false;
+    let guard = 0;
+    while (q.length && guard++ < 500) {
+      const [x, y] = q.shift();
+      if (x === pgx && y === pgy) { found = true; break; }
+      for (let [dx, dy] of dirs) {
+        const nx = x + dx;
+        const ny = y + dy;
+        const k = key(nx, ny);
+        if (came[k] !== undefined) continue;
+        if (!isFree(nx, ny)) continue;
+        came[k] = [x, y];
+        q.push([nx, ny]);
+      }
+    }
+    if (!found) return null;
+
+    let cur = [pgx, pgy];
+    while (true) {
+      const prev = came[key(cur[0], cur[1])];
+      if (!prev) return null;
+      if (prev[0] === egx && prev[1] === egy) {
+        return {
+          x: cur[0] * cell + cell / 2,
+          y: cur[1] * cell + cell / 2
+        };
+      }
+      cur = prev;
+    }
+  }
+
+  // Моб идёт к цели, видит препятствия и обходит их
+  function moveMobToward(m, tx, ty, solidFn) {
+    solidFn = solidFn || zoneSolidAt;
+    if (m.avoidSign == null) m.avoidSign = Math.random() < 0.5 ? 1 : -1;
+
+    let aimX = tx;
+    let aimY = ty;
+    const step = zonePathNextStep(m, tx, ty, solidFn);
+    if (step) {
+      aimX = step.x;
+      aimY = step.y;
+    }
+
+    const cx = m.x + m.w / 2;
+    const cy = m.y + m.h / 2;
+    let dx = aimX - cx;
+    let dy = aimY - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    const spd = m.speed;
+    const sx = (dx / dist) * spd;
+    const sy = (dy / dist) * spd;
+
+    const tryMove = (mx, my) => {
+      const nx = m.x + mx;
+      const ny = m.y + my;
+      if (!solidFn(nx, ny, m.w, m.h)) {
+        m.x = nx;
+        m.y = ny;
+        return true;
+      }
+      return false;
+    };
+
+    if (tryMove(sx, sy)) return true;
+    // скольжение по осям
+    if (tryMove(sx, 0)) return true;
+    if (tryMove(0, sy)) return true;
+
+    // обойти вдоль стены (перпендикуляр)
+    const px = -sy * m.avoidSign;
+    const py = sx * m.avoidSign;
+    if (tryMove(px, py)) return true;
+    if (tryMove(-px, -py)) {
+      m.avoidSign *= -1;
+      return true;
+    }
+
+    // веер углов, если застрял
+    for (let a = 0.5; a < Math.PI; a += 0.45) {
+      const c = Math.cos(a), s = Math.sin(a);
+      if (tryMove(sx * c - sy * s, sx * s + sy * c)) return true;
+      if (tryMove(sx * c + sy * s, -sx * s + sy * c)) return true;
+    }
+    m.avoidSign *= -1;
+    return false;
+  }
+
+  function unstickFromObstacles(list) {
+    const offsets = [
+      [0, -36], [0, 36], [40, 0], [-40, 0], [50, 40], [-50, 40],
+      [0, -60], [60, 0], [-60, 0], [70, -30], [-70, -30], [30, 60], [-30, 60]
+    ];
+    for (let m of list) {
+      if (!m) continue;
+      if (!zoneSolidAt(m.x, m.y, m.w, m.h)) continue;
+      for (let [ox, oy] of offsets) {
+        const nx = m.x + ox;
+        const ny = m.y + oy;
+        if (!zoneSolidAt(nx, ny, m.w, m.h)) {
+          m.x = nx;
+          m.y = ny;
+          break;
+        }
+      }
+    }
+  }
+
   function updateHub() {
     regenMana();
     moveRpgActor(softBound);
@@ -8639,7 +8868,7 @@
   function updateSlimesZone() {
     if (invulnTimer > 0) invulnTimer--;
     regenMana();
-    moveRpgActor(softBound);
+    moveRpgActor(zoneSolidAt);
     updateProjectilesAndSkills(fieldSlimes);
     updateFieldDrops();
     const p = townPlayer;
@@ -8648,11 +8877,10 @@
     for (let s of fieldSlimes) {
       if (!s.alive) continue;
       s.bob += 0.1;
+      moveMobToward(s, pcx, pcy, zoneSolidAt);
       const dx = pcx - (s.x + s.w / 2);
       const dy = pcy - (s.y + s.h / 2);
       const d = Math.hypot(dx, dy) || 1;
-      s.x += (dx / d) * s.speed;
-      s.y += (dy / d) * s.speed;
       if (s.atkCd > 0) s.atkCd--;
       if (d < 22 && s.atkCd <= 0) {
         hurtPlayer(1);
@@ -8704,6 +8932,7 @@
     ctx.font = '14px Segoe UI, Arial';
     ctx.textAlign = 'center';
     ctx.fillText('↑ назад на поляну', W / 2, 24);
+    drawZoneObstacles();
     for (let s of fieldSlimes) drawSlime(s);
     drawFieldDrops();
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
@@ -8719,7 +8948,7 @@
     moveRpgActor(function (nx, ny, nw, nh) {
       // до победы нельзя уйти влево; после — выход на поляну
       if (!dungeonCleared && nx < 40) return true;
-      return softBound(nx, ny, nw, nh);
+      return zoneSolidAt(nx, ny, nw, nh);
     });
     updateProjectilesAndSkills(fieldSlimes);
     const p = townPlayer;
@@ -8728,11 +8957,10 @@
     for (let s of fieldSlimes) {
       if (!s.alive) continue;
       s.bob += 0.08;
+      moveMobToward(s, pcx, pcy, zoneSolidAt);
       const dx = pcx - (s.x + s.w / 2);
       const dy = pcy - (s.y + s.h / 2);
       const d = Math.hypot(dx, dy) || 1;
-      s.x += (dx / d) * s.speed;
-      s.y += (dy / d) * s.speed;
       if (s.atkCd > 0) s.atkCd--;
       if (d < 22 && s.atkCd <= 0) {
         hurtPlayer(1);
@@ -8789,6 +9017,7 @@
       ctx.fillText('Данж · этаж ' + dungeonLevel + ' · победи врагов', 70, 30);
     }
     drawDungeonChest();
+    drawZoneObstacles();
     for (let s of fieldSlimes) drawSlime(s);
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
     drawProjectiles();
