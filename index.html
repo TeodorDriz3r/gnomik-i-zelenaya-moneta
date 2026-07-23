@@ -3687,11 +3687,11 @@
   // Горизонтали: верх y=198..226, низ y=340
   const TOWN_BUILDINGS = [
     { id: 1, name: 'Гильдия', x: 340, y: 18, w: 120, h: 64, door: true, color: '#a1887f', roof: '#5d4037', special: 'guild', accent: '#ffe082' },
-    // верхний ряд — обычная высота, двери у верхнего края дороги (y=198)
-    { id: 9, name: 'Дом 9', x: 75, y: 142, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
-    { id: 7, name: 'Оружейная', x: 215, y: 146, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
-    { id: 2, name: 'Дом 2', x: 495, y: 146, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
-    { id: 4, name: 'Дом 4', x: 635, y: 142, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
+    // верхние 4 — высота как у остальных; низ/дверь на верхнем конце вертикальной дороги
+    { id: 9, name: 'Дом 9', x: 75, y: 54, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
+    { id: 7, name: 'Оружейная', x: 215, y: 48, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
+    { id: 2, name: 'Дом 2', x: 495, y: 48, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
+    { id: 4, name: 'Дом 4', x: 635, y: 54, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
     // зелья/цветы выше — перед дверью есть проход для гномика
     { id: 8, name: 'Зелья', x: 216, y: 200, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
     { id: 3, name: 'Цветы', x: 496, y: 200, w: 68, h: 52, door: true, color: '#f48fb1', roof: '#ad1457', special: 'flowers', accent: '#fce4ec' },
