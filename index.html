@@ -293,15 +293,15 @@
       <div id="classCards">
         <button class="class-card mage" data-class="mage" type="button">
           <div class="cn">Маг</div>
-          <div class="cd">Навык «Шар» 1 ур.<br>Шарик наносит 1 урон</div>
+          <div class="cd">Старт: 5 HP · 5 маны<br>Навык «Шар» 1 ур. (1 урон)</div>
         </button>
         <button class="class-card swordsman" data-class="swordsman" type="button">
           <div class="cn">Мечник</div>
-          <div class="cd">Меч (1 урон)<br>Навык «Рассекание» 1 ур. (1 урон)</div>
+          <div class="cd">Старт: 5 HP<br>Меч + «Рассекание» 1 ур.</div>
         </button>
         <button class="class-card archer" data-class="archer" type="button">
           <div class="cn">Лучник</div>
-          <div class="cd">Лук (1 урон)<br>Навык «Выстрел» 1 ур. (1 урон)</div>
+          <div class="cd">Старт: 5 HP<br>Лук + «Выстрел» 1 ур.</div>
         </button>
       </div>
     </div>
@@ -3806,7 +3806,9 @@
       id: 'mage',
       title: 'Маг',
       color: '#5e35b1',
-      blurb: 'Шар 1 ур. — 1 урон',
+      blurb: '5 HP · 5 маны · Шар 1 ур.',
+      baseHp: 5,
+      baseMana: 5,
       equipment: [{ id: 'orb_focus', name: 'Фокус шара', damage: 1 }],
       skills: [{ id: 'orb', name: 'Шар', level: 1, damage: 1, kind: 'orb', color: '#7e57c2' }]
     },
@@ -3814,7 +3816,9 @@
       id: 'swordsman',
       title: 'Мечник',
       color: '#c62828',
-      blurb: 'Меч 1 урон + Рассекание 1 ур.',
+      blurb: '5 HP · Меч + Рассекание',
+      baseHp: 5,
+      baseMana: 0,
       equipment: [{ id: 'sword', name: 'Обычный меч', damage: 1 }],
       skills: [{ id: 'slash', name: 'Рассекание', level: 1, damage: 1, kind: 'slash', color: '#ef5350' }]
     },
@@ -3822,7 +3826,9 @@
       id: 'archer',
       title: 'Лучник',
       color: '#2e7d32',
-      blurb: 'Лук 1 урон + Выстрел 1 ур.',
+      blurb: '5 HP · Лук + Выстрел',
+      baseHp: 5,
+      baseMana: 0,
       equipment: [{ id: 'bow', name: 'Лук', damage: 1 }],
       skills: [{ id: 'shot', name: 'Выстрел из лука', level: 1, damage: 1, kind: 'shot', color: '#8d6e63' }]
     }
@@ -4153,8 +4159,8 @@
       skills: def.skills.map(s => Object.assign({}, s)),
       anim: 0,
       walking: false,
-      hp: 5,
-      maxHp: 5,
+      hp: def.baseHp,
+      maxHp: def.baseHp,
       level: 1,
       xp: 0,
       xpToNext: 10,
@@ -4162,8 +4168,8 @@
       copper: 0,
       silver: 150,
       gold: 0,
-      mana: def.id === 'mage' ? 5 : 0,
-      maxMana: def.id === 'mage' ? 5 : 0,
+      mana: def.baseMana || 0,
+      maxMana: def.baseMana || 0,
       baseSpeed: 2.4,
       slowTimer: 0,
       guildRank: 'E',
@@ -8485,7 +8491,7 @@
       fieldSlimes.push({
         x: 120 + i * 130 + rand(-20, 20),
         y: 220 + rand(-40, 80),
-        w: 18, h: 22, r: 11,
+        w: 28, h: 22, r: 16,
         hp: 4, maxHp: 4,
         alive: true,
         speed: 1.15,
@@ -8516,7 +8522,7 @@
       fieldSlimes.push({
         x: 200 + (i % 4) * 140,
         y: 120 + Math.floor(i / 4) * 120,
-        w: 18, h: 22, r: 11,
+        w: 26, h: 26, r: 14,
         hp: 3 + dungeonLevel,
         maxHp: 3 + dungeonLevel,
         alive: true,
