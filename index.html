@@ -5431,6 +5431,18 @@
     ctx.fillStyle = '#fff59d';
     ctx.fillRect(220, H - 42, 20, 9);
 
+    // доп. травяные пятна — только на газоне (до дорог, чтобы не портить кирпич)
+    ctx.fillStyle = '#66bb6a';
+    const grassPatches = [
+      [45, 120], [180, 130], [310, 95], [480, 95],
+      [620, 130], [95, 160], [740, 250], [40, 250],
+      [300, 370], [520, 370], [700, 290], [160, 250]
+    ];
+    for (let g of grassPatches) {
+      ctx.fillRect(g[0], g[1], 16 + (g[0] % 7), 9);
+      ctx.fillRect(g[0] + 10, g[1] + 6, 12, 7);
+    }
+
     function roadH(y, x0, x1) {
       fillBrickRect(x0, y, x1 - x0, 28);
     }
