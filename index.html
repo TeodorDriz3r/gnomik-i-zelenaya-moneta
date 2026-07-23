@@ -3862,7 +3862,7 @@
       xpToNext: 10,
       activeSkill: 0,
       copper: 0,
-      silver: 10,
+      silver: 150,
       gold: 0,
       mana: def.id === 'mage' ? 1 : 0,
       maxMana: def.id === 'mage' ? 1 : 0,
@@ -3890,28 +3890,82 @@
     updateUI();
   }
 
-  function townSolidAt(nx, ny, nw, nh) {
+  function buildingContour(b) {
+    // контур как на фото: стены + крыша целиком
+    return { x: b.x - 4, y: b.y, w: b.w + 8, h: b.h };
+  }
+
+  function buildingDoorZone(b) {
+    const doorW = Math.max(24, Math.min(36, b.w * 0.34));
+    return {
+      x: b.x + b.w / 2 - doorW / 2,
+      y: b.y + b.h - 4,
+      w: doorW,
+      h: 20
+    };
+  }
+
+  function atBuildingDoor(cx, cy, b) {
+    const d = buildingDoorZone(b);
+    return cx >= d.x - 4 && cx <= d.x + d.w + 4 &&
+      cy >= d.y - 6 && cy <= d.y + d.h + 8;
+  }
+
+  function townSolidAt(nx, ny, nw, nh, allowDoor) {
     const box = { x: nx, y: ny, w: nw, h: nh };
+    const pcx = nx + nw / 2;
+    const pbot = ny + nh;
     for (let b of TOWN_BUILDINGS) {
-      // хитбокс уже; снизу по центру — проём двери (пройти к [E])
-      const hit = { x: b.x + 6, y: b.y + 10, w: b.w - 12, h: b.h - 22 };
-      if (rectCollide(box, hit)) {
-        const pcx = nx + nw / 2;
-        const doorL = b.x + b.w * 0.32;
-        const doorR = b.x + b.w * 0.68;
-        const nearDoor = pcx > doorL && pcx < doorR && ny + nh > b.y + b.h - 28;
-        if (!nearDoor) return true;
+      const c = buildingContour(b);
+      if (!rectCollide(box, c)) continue;
+      // игроку можно стоять в проёме двери (низ по центру)
+      if (allowDoor) {
+        const door = buildingDoorZone(b);
+        const inDoorX = pcx >= door.x && pcx <= door.x + door.w;
+        const inDoorY = pbot >= b.y + b.h - 8 && ny <= b.y + b.h + 16;
+        if (inDoorX && inDoorY) continue;
       }
+      return true;
     }
     const fx = TOWN_FOUNTAIN.x;
     const fy = TOWN_FOUNTAIN.y;
     const cx = nx + nw / 2;
     const cy = ny + nh / 2;
     if (Math.hypot(cx - fx, cy - fy) < TOWN_FOUNTAIN.r - 4) return true;
-    // стены города (у ворот можно выйти)
     const atGates = (nx + nw / 2 > TOWN_GATES.x - 5 && nx + nw / 2 < TOWN_GATES.x + TOWN_GATES.w + 5 && ny > TOWN_GATES.y - 30);
     if (nx < 18 || ny < 18 || nx + nw > W - 18 || (!atGates && ny + nh > H - 18)) return true;
     return false;
+  }
+
+  function npcTownSolid(nx, ny) {
+    // хитбокс городских жителей (центр тела ≈ n.x,n.y)
+    return townSolidAt(nx - 7, ny - 2, 14, 18, false);
+  }
+
+  function moveNpcAround(n, dx, dy, speed) {
+    const len = Math.hypot(dx, dy) || 1;
+    const stepX = (dx / len) * speed;
+    const stepY = (dy / len) * speed;
+    const tx = n.x + stepX;
+    const ty = n.y + stepY;
+    if (!npcTownSolid(tx, ty)) {
+      n.x = tx;
+      n.y = ty;
+    } else if (!npcTownSolid(tx, n.y)) {
+      n.x = tx;
+    } else if (!npcTownSolid(n.x, ty)) {
+      n.y = ty;
+    } else {
+      // обойти: попробуй вбок вдоль контура
+      if (!npcTownSolid(n.x + stepY, n.y - stepX)) {
+        n.x += stepY;
+        n.y -= stepX;
+      } else if (!npcTownSolid(n.x - stepY, n.y + stepX)) {
+        n.x -= stepY;
+        n.y += stepX;
+      }
+    }
+    if (Math.abs(dx) > 0.1) n.facing = dx >= 0 ? 1 : -1;
   }
 
   function houseSolidAt(nx, ny, nw, nh) {
@@ -4178,6 +4232,10 @@
       ctx.font = '12px Segoe UI, Arial';
       ctx.textAlign = 'center';
       ctx.fillText('Починка снаряжения · Улучшение снаряжения · Создание нового снаряжения', W / 2, midY + 73);
+    } else if (hasStealSkill()) {
+      const stolen = !!(insideHouse.stolen || houseStolenIds[b.id]);
+      houseBtn(200, midY, 400, 52, stolen ? 'Уже обокраден' : 'Взлом', 'steal',
+        stolen ? '#455a64' : '#6a1b9a', '#ce93d8');
     }
 
     // дверь
@@ -4204,6 +4262,7 @@
       const btn = houseUiButtons[i];
       if (mx < btn.x || my < btn.y || mx > btn.x + btn.w || my > btn.y + btn.h) continue;
       if (btn.action === 'exit') { exitHouseInterior(); return true; }
+      if (btn.action === 'steal') { tryStealHouse(); return true; }
       if (btn.action === 'shop_guild') { openShop('guild'); return true; }
       if (btn.action === 'shop_weapons') { openShop('weapons'); return true; }
       if (btn.action === 'shop_potions') { openShop('potions'); return true; }
@@ -4352,8 +4411,8 @@
         const mx = p.dirX * spd;
         const my = p.dirY * spd;
         let moved = false;
-        if (!townSolidAt(p.x + mx, p.y, p.w, p.h)) { p.x += mx; moved = true; }
-        if (!townSolidAt(p.x, p.y + my, p.w, p.h)) { p.y += my; moved = true; }
+        if (!townSolidAt(p.x + mx, p.y, p.w, p.h, true)) { p.x += mx; moved = true; }
+        if (!townSolidAt(p.x, p.y + my, p.w, p.h, true)) { p.y += my; moved = true; }
         if (moved) {
           p.walking = true;
           p.anim += 0.35;
@@ -4382,24 +4441,18 @@
       return;
     }
 
-    // Подсказка у зданий
+    // Подсказка у зданий — только у двери
     nearTownBuilding = null;
     for (let b of TOWN_BUILDINGS) {
       const cx = p.x + p.w / 2;
       const cy = p.y + p.h / 2;
-      const bx = b.x + b.w / 2;
-      const by = b.y + b.h + 8;
-      if (Math.hypot(cx - bx, cy - by) < 42) { nearTownBuilding = b; break; }
+      if (atBuildingDoor(cx, cy, b)) { nearTownBuilding = b; break; }
     }
     if (nearTownBuilding && !messageDiv.textContent.startsWith('Получено') && !rpgUi) {
       let tip = nearTownBuilding.name;
-      if (isEmptyHouse(nearTownBuilding)) {
-        const stolen = !!houseStolenIds[nearTownBuilding.id];
-        if (stolen) tip += '  ·  уже взломан';
-        else if (hasStealSkill()) tip += '  ·  [E] / кнопка — Взлом';
-        else tip += '  ·  закрыт · нужен навык «Взлом»';
-      } else {
-        tip += '  ·  [E] войти';
+      tip += '  ·  [E] войти в дверь';
+      if (isEmptyHouse(nearTownBuilding) && hasStealSkill()) {
+        tip += houseStolenIds[nearTownBuilding.id] ? ' · уже взломан' : ' · внутри: Взлом';
       }
       messageDiv.textContent = tip;
     } else if (!nearTownBuilding && !rpgUi && !messageDiv.textContent.startsWith('Получено')) {
@@ -4981,8 +5034,15 @@
       if (n.role === 'monument') {
         if (n.pause > 0) { n.pause--; continue; }
         n.angle += 0.012;
-        n.x = TOWN_FOUNTAIN.x + Math.cos(n.angle) * n.radius;
-        n.y = TOWN_FOUNTAIN.y + Math.sin(n.angle) * n.radius * 0.72;
+        const nx = TOWN_FOUNTAIN.x + Math.cos(n.angle) * n.radius;
+        const ny = TOWN_FOUNTAIN.y + Math.sin(n.angle) * n.radius * 0.72;
+        if (!npcTownSolid(nx, ny)) {
+          n.x = nx;
+          n.y = ny;
+        } else {
+          // если упёрся в дом — чуть уменьши радиус на кадр
+          n.angle += 0.04;
+        }
         n.facing = Math.cos(n.angle + 0.1) >= 0 ? 1 : -1;
         if (n.t % 160 === 0) n.pause = 40 + (n.t % 30);
       } else if (n.role === 'water') {
@@ -5000,9 +5060,7 @@
           n.ti = (n.ti + 1) % n.targets.length;
           n.pause = 10;
         } else {
-          n.x += (dx / d) * 0.7;
-          n.y += (dy / d) * 0.7;
-          n.facing = dx >= 0 ? 1 : -1;
+          moveNpcAround(n, dx, dy, 0.7);
         }
       } else if (n.role === 'search') {
         if (n.look > 0) { n.look--; continue; }
@@ -5019,9 +5077,7 @@
             n.tx = TOWN_FOUNTAIN.x + 90;
           }
         } else {
-          n.x += (dx / d) * 0.95;
-          n.y += (dy / d) * 0.95;
-          n.facing = dx >= 0 ? 1 : -1;
+          moveNpcAround(n, dx, dy, 0.95);
         }
       } else if (n.role === 'merchant') {
         if (n.wave > 0) { n.wave--; }
@@ -5036,9 +5092,7 @@
           n.tx = 100 + Math.random() * 600;
           n.ty = 350 + Math.random() * 18;
         } else {
-          n.x += (dx / d) * 0.55;
-          n.y += (dy / d) * 0.55;
-          n.facing = dx >= 0 ? 1 : -1;
+          moveNpcAround(n, dx, dy, 0.55);
         }
       }
     }
@@ -6390,22 +6444,23 @@
   }
 
   function tryLockpickHouse(b) {
-    if (!townPlayer || rpgUi || insideHouse) return;
-    b = b || nearTownBuilding;
+    if (!townPlayer || rpgUi) return;
+    b = b || (insideHouse && insideHouse.building) || nearTownBuilding;
     if (!b || !isEmptyHouse(b)) {
       messageDiv.textContent = 'Взлом только для пустых домов';
       return;
     }
     if (!hasStealSkill()) {
-      messageDiv.textContent = 'Дверь на замке · нужен навык «Взлом»';
+      messageDiv.textContent = 'Нужен навык «Взлом»';
       return;
     }
     const id = b.id;
-    if (houseStolenIds[id]) {
+    if (houseStolenIds[id] || (insideHouse && insideHouse.stolen)) {
       messageDiv.textContent = 'Этот дом уже взломан';
       return;
     }
     houseStolenIds[id] = true;
+    if (insideHouse) insideHouse.stolen = true;
     const loot = rollStealLoot();
     townPlayer.bag.push(loot);
     messageDiv.textContent = 'Взлом удался: ' + loot.name;
@@ -6803,12 +6858,14 @@
       exitHouseInterior();
       return;
     }
-    if (!nearTownBuilding) return;
-    // пустые дома — только взлом снаружи, внутрь нельзя
-    if (isEmptyHouse(nearTownBuilding)) {
-      tryLockpickHouse(nearTownBuilding);
+    if (!nearTownBuilding || !townPlayer) return;
+    const cx = townPlayer.x + townPlayer.w / 2;
+    const cy = townPlayer.y + townPlayer.h / 2;
+    if (!atBuildingDoor(cx, cy, nearTownBuilding)) {
+      messageDiv.textContent = 'Подойди к двери';
       return;
     }
+    // любой дом и гильдия — вход через дверь
     enterHouseInterior(nearTownBuilding);
   }
 
