@@ -3684,15 +3684,17 @@
 
   // Раскладка: дома по центрам вертикальных дорог, двери на горизонтальных
   // Вертикали (центр полосы 28px): 114, 250, 400, 530, 674
-  // Горизонтали: верх y=198, низ y=340
+  // Горизонтали: верх y=198..226, низ y=340
   const TOWN_BUILDINGS = [
     { id: 1, name: 'Гильдия', x: 340, y: 18, w: 120, h: 64, door: true, color: '#a1887f', roof: '#5d4037', special: 'guild', accent: '#ffe082' },
-    { id: 9, name: 'Дом 9', x: 75, y: 142, w: 78, h: 56, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
-    { id: 7, name: 'Оружейная', x: 215, y: 146, w: 70, h: 52, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
-    { id: 2, name: 'Дом 2', x: 495, y: 146, w: 70, h: 52, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
-    { id: 4, name: 'Дом 4', x: 635, y: 142, w: 78, h: 56, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
-    { id: 8, name: 'Зелья', x: 216, y: 232, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
-    { id: 3, name: 'Цветы', x: 496, y: 232, w: 68, h: 52, door: true, color: '#f48fb1', roof: '#ad1457', special: 'flowers', accent: '#fce4ec' },
+    // верхний ряд — вытянуты вверх до начала вертикальных дорог, дверь на верхней улице
+    { id: 9, name: 'Дом 9', x: 75, y: 100, w: 78, h: 98, door: true, color: '#ffab91', roof: '#bf360c', accent: '#fbe9e7' },
+    { id: 7, name: 'Оружейная', x: 215, y: 104, w: 70, h: 94, door: true, color: '#a5d6a7', roof: '#2e7d32', accent: '#e8f5e9', special: 'weapons' },
+    { id: 2, name: 'Дом 2', x: 495, y: 104, w: 70, h: 94, door: true, color: '#ef9a9a', roof: '#c62828', accent: '#ffcdd2' },
+    { id: 4, name: 'Дом 4', x: 635, y: 100, w: 78, h: 98, door: true, color: '#90caf9', roof: '#1565c0', accent: '#e3f2fd' },
+    // зелья/цветы выше — перед дверью есть проход для гномика
+    { id: 8, name: 'Зелья', x: 216, y: 200, w: 68, h: 52, door: true, color: '#ce93d8', roof: '#6a1b9a', accent: '#f3e5f5', special: 'potions' },
+    { id: 3, name: 'Цветы', x: 496, y: 200, w: 68, h: 52, door: true, color: '#f48fb1', roof: '#ad1457', special: 'flowers', accent: '#fce4ec' },
     { id: 10, name: 'Дом 10', x: 74, y: 284, w: 80, h: 56, door: true, color: '#80cbc4', roof: '#00695c', accent: '#e0f2f1' },
     { id: 11, name: 'Таверна', x: 214, y: 288, w: 72, h: 52, door: true, color: '#d7ccc8', roof: '#5d4037', accent: '#efebe9', special: 'tavern' },
     { id: 6, name: 'Дом 6', x: 494, y: 288, w: 72, h: 52, door: true, color: '#bcaaa4', roof: '#4e342e', accent: '#d7ccc8' },
@@ -3759,7 +3761,7 @@
       c.caption = '«Хочу купить цветы для принцессы...»';
     } else if (c.phase === 3) {
       c.gnomeX = 530;
-      c.gnomeY = 290;
+      c.gnomeY = 265;
       c.caption = 'Но цветы слишком дорогие для него...';
     } else if (c.phase === 4) {
       c.caption = '«Нужно заработать денег!»';
@@ -3793,7 +3795,7 @@
     } else if (c.phase === 2 && c.t > 100) advanceCityIntro();
     else if (c.phase === 3) {
       c.gnomeX += (530 - c.gnomeX) * 0.04;
-      c.gnomeY += (290 - c.gnomeY) * 0.04;
+      c.gnomeY += (265 - c.gnomeY) * 0.04;
       if (c.t > 110) advanceCityIntro();
     } else if (c.phase === 4 && c.t > 90) advanceCityIntro();
     else if (c.phase === 5) {
@@ -3879,9 +3881,15 @@
   function townSolidAt(nx, ny, nw, nh) {
     const box = { x: nx, y: ny, w: nw, h: nh };
     for (let b of TOWN_BUILDINGS) {
-      // чуть уже хитбокс — можно пройти между домами
-      const hit = { x: b.x + 6, y: b.y + 10, w: b.w - 12, h: b.h - 14 };
-      if (rectCollide(box, hit)) return true;
+      // хитбокс уже; снизу по центру — проём двери (пройти к [E])
+      const hit = { x: b.x + 6, y: b.y + 10, w: b.w - 12, h: b.h - 22 };
+      if (rectCollide(box, hit)) {
+        const pcx = nx + nw / 2;
+        const doorL = b.x + b.w * 0.32;
+        const doorR = b.x + b.w * 0.68;
+        const nearDoor = pcx > doorL && pcx < doorR && ny + nh > b.y + b.h - 28;
+        if (!nearDoor) return true;
+      }
     }
     const fx = TOWN_FOUNTAIN.x;
     const fy = TOWN_FOUNTAIN.y;
@@ -4284,7 +4292,7 @@
       const cy = p.y + p.h / 2;
       const bx = b.x + b.w / 2;
       const by = b.y + b.h + 8;
-      if (Math.hypot(cx - bx, cy - by) < 36) { nearTownBuilding = b; break; }
+      if (Math.hypot(cx - bx, cy - by) < 42) { nearTownBuilding = b; break; }
     }
     if (nearTownBuilding && !messageDiv.textContent.startsWith('Получено') && !rpgUi) {
       let tip = nearTownBuilding.name;
