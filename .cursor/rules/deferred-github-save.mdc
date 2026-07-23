@@ -7,7 +7,17 @@ alwaysApply: true
 
 - Do **not** commit or push to GitHub after every change or every user request.
 - Only save to GitHub after the user **stops making requests** and **10 minutes** pass with no new user request.
-- When finishing work that leaves a dirty tree, arm a **one-shot 10-minute** deferred save (`Start-Sleep -Seconds 600` + `AGENT_LOOP_WAKE_deferred_git`). Cancel/replace any previous deferred-save timer first.
+
+## After a recent GitHub save
+
+- If you **just pushed** (or the tree is clean with nothing new), **do not** arm another idle timer and **do not** push again.
+- Arm the 10-minute deferred save **only when new local changes appear** after the last successful push (dirty working tree / new untracked files worth committing).
+- Duplicate or leftover wake timers: if the tree is clean, exit quietly — no empty commits, no “nothing to save” spam beyond a brief note if the system asks.
+
+## How to arm
+
+- When finishing work that leaves a **dirty** tree, arm a **one-shot 10-minute** deferred save (`Start-Sleep -Seconds 600` + `AGENT_LOOP_WAKE_deferred_git`). Cancel/replace any previous deferred-save timer first.
 - On wake: if there are uncommitted changes, commit as `TeodorDriz3r` / `TeodorDriz3r@users.noreply.github.com` and push to `origin`. If clean, do nothing.
-- If the user sends a new request before the 10 minutes end, cancel the old timer and re-arm 10 minutes after the next change batch (or after the reply if the tree is still dirty).
-- Local preview (`localhost`) and opening the site are fine anytime; GitHub push waits for the idle window.
+- If the user sends a new request before the 10 minutes end, cancel the old timer; re-arm **only if** the tree is still dirty after that work.
+
+Local preview (`localhost`) is fine anytime; GitHub push waits for new changes + the idle window.

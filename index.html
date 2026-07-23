@@ -4165,6 +4165,11 @@
       xp: 0,
       xpToNext: 10,
       activeSkill: 0,
+      skillHotbar: [
+        def.skills[0] ? def.skills[0].id : null,
+        def.skills[1] ? def.skills[1].id : null,
+        def.skills[2] ? def.skills[2].id : null
+      ],
       copper: 0,
       silver: 150,
       gold: 0,
@@ -4190,7 +4195,7 @@
     if (advLevelSpan) advLevelSpan.textContent = def.title + ' · Lv.1 · ранг E';
     messageDiv.textContent = '';
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>WASD</kbd> ход · <kbd>ЛКМ</kbd> удар · <kbd>Q</kbd> навык · <kbd>Shift</kbd> зелье · <kbd>C</kbd> ранг · <kbd>E</kbd> · <kbd>Z</kbd>/<kbd>X</kbd>';
+      '<kbd>WASD</kbd> · <kbd>ЛКМ</kbd> удар · <kbd>ПКМ</kbd>/<kbd>E</kbd>/<kbd>Q</kbd> навыки · <kbd>Shift</kbd> зелье · <kbd>Z</kbd>/<kbd>X</kbd>';
     updateUI();
   }
 
@@ -4408,6 +4413,17 @@
 
   function updateUiHover(mx, my) {
     uiHover = null;
+    if (skillDrag) {
+      for (let i = 0; i < skillHotbarBoxes.length; i++) {
+        if (pointInBox(mx, my, skillHotbarBoxes[i])) {
+          uiHover = { kind: 'hotbar', index: i };
+          setGameCursor('grabbing');
+          return;
+        }
+      }
+      setGameCursor('grabbing');
+      return;
+    }
     if (invDrag) {
       // во время перетаскивания подсвечиваем цель сброса
       if (rpgUi === 'gear') {
@@ -4433,6 +4449,13 @@
       }
       setGameCursor('grabbing');
       return;
+    }
+    for (let i = 0; i < skillHotbarBoxes.length; i++) {
+      if (pointInBox(mx, my, skillHotbarBoxes[i])) {
+        uiHover = { kind: 'hotbar', index: i };
+        setGameCursor(getHotbarSkill(i) ? 'grab' : 'pointer');
+        return;
+      }
     }
     if (insideHouse && !rpgUi && houseUiButtons) {
       for (let i = 0; i < houseUiButtons.length; i++) {
@@ -4791,6 +4814,7 @@
     const idx = skillIndex != null ? skillIndex : (p.activeSkill || 0);
     const sk = p.skills[idx] || p.skills[0];
     if (!sk) return;
+    if (townSkillCd > 0) return;
     aimTownAt(mousePos.x, mousePos.y);
     const kind = sk.kind || sk.id;
     if (kind === 'steal' || kind === 'lockpick') {
@@ -4850,6 +4874,121 @@
     setTimeout(() => {
       if (messageDiv.textContent.indexOf('урона') !== -1) messageDiv.textContent = '';
     }, 900);
+  }
+
+  function ensureSkillHotbar() {
+    if (!townPlayer) return;
+    if (!Array.isArray(townPlayer.skillHotbar) || townPlayer.skillHotbar.length !== 3) {
+      const skills = townPlayer.skills || [];
+      townPlayer.skillHotbar = [
+        skills[0] ? skills[0].id : null,
+        skills[1] ? skills[1].id : null,
+        skills[2] ? skills[2].id : null
+      ];
+    }
+  }
+
+  function findSkillIndexById(id) {
+    if (!townPlayer || !id) return -1;
+    for (let i = 0; i < townPlayer.skills.length; i++) {
+      if (townPlayer.skills[i].id === id) return i;
+    }
+    return -1;
+  }
+
+  function getHotbarSkill(slot) {
+    ensureSkillHotbar();
+    const id = townPlayer.skillHotbar[slot];
+    if (!id) return null;
+    const idx = findSkillIndexById(id);
+    return idx >= 0 ? townPlayer.skills[idx] : null;
+  }
+
+  function castHotbarSlot(slot) {
+    if (!townPlayer || rpgUi || paused || insideHouse) return;
+    if (townSkillCd > 0) return;
+    ensureSkillHotbar();
+    const id = townPlayer.skillHotbar[slot];
+    if (!id) {
+      messageDiv.textContent = 'Слот навыка пуст — открой X и перетащи навык';
+      setTimeout(() => {
+        if (messageDiv.textContent.indexOf('Слот навыка') !== -1) messageDiv.textContent = '';
+      }, 1200);
+      return;
+    }
+    const idx = findSkillIndexById(id);
+    if (idx < 0) {
+      townPlayer.skillHotbar[slot] = null;
+      return;
+    }
+    castTownSkill(idx);
+  }
+
+  function fillEmptyHotbarWithSkill(skillId) {
+    if (!townPlayer || !skillId) return;
+    ensureSkillHotbar();
+    for (let i = 0; i < 3; i++) {
+      if (!townPlayer.skillHotbar[i]) {
+        townPlayer.skillHotbar[i] = skillId;
+        return;
+      }
+    }
+  }
+
+  function nearDungeonChest() {
+    if (!townPlayer || !dungeonChest || gameState !== STATE.DUNGEON) return false;
+    const c = dungeonChest;
+    return Math.hypot(
+      townPlayer.x + townPlayer.w / 2 - (c.x + c.w / 2),
+      townPlayer.y + townPlayer.h / 2 - (c.y + c.h / 2)
+    ) < 42;
+  }
+
+  function nearGatherNode() {
+    if (!townPlayer || (gameState !== STATE.GATHER && gameState !== STATE.GUILD_GATHER)) return false;
+    for (let n of fieldNodes) {
+      if (n.taken) continue;
+      if (Math.hypot(townPlayer.x + townPlayer.w / 2 - n.x, townPlayer.y + townPlayer.h / 2 - n.y) < 28) return true;
+    }
+    return false;
+  }
+
+  function canInteractWithE() {
+    if (insideHouse) return true;
+    if (nearDungeonChest()) return true;
+    if (nearGatherNode()) return true;
+    if (nearTownBuilding && townPlayer) {
+      const cx = townPlayer.x + townPlayer.w / 2;
+      const cy = townPlayer.y + townPlayer.h / 2;
+      if (atBuildingDoor(cx, cy, nearTownBuilding)) return true;
+    }
+    return false;
+  }
+
+  function tryUseEKey() {
+    if (rpgUi) return;
+    if (insideHouse) {
+      exitHouseInterior();
+      return;
+    }
+    if (gameState === STATE.DUNGEON && nearDungeonChest()) {
+      tryOpenDungeonChest();
+      return;
+    }
+    if ((gameState === STATE.GATHER || gameState === STATE.GUILD_GATHER) && nearGatherNode()) {
+      tryGatherNode();
+      return;
+    }
+    if (nearTownBuilding && townPlayer) {
+      const cx = townPlayer.x + townPlayer.w / 2;
+      const cy = townPlayer.y + townPlayer.h / 2;
+      if (atBuildingDoor(cx, cy, nearTownBuilding)) {
+        enterHouseInterior(nearTownBuilding);
+        return;
+      }
+    }
+    // не у двери / сундука / ресурса — второй навык
+    castHotbarSlot(1);
   }
 
   function regenMana() {
@@ -5012,6 +5151,7 @@
       messageDiv.textContent = s.name + ' теперь ур.' + s.level + '!';
     } else if (ch.type === 'new') {
       townPlayer.skills.push(Object.assign({}, ch.skill));
+      fillEmptyHotbarWithSkill(ch.skill.id);
       messageDiv.textContent = 'Изучено: ' + ch.skill.name;
     }
     pendingLevelUps = Math.max(0, pendingLevelUps - 1);
@@ -6619,6 +6759,7 @@
       color: '#78909c',
       desc: 'Взлом пустых домов с улицы · E или кнопка'
     });
+    fillEmptyHotbarWithSkill('lockpick');
     return true;
   }
 
@@ -7055,6 +7196,9 @@
   let shopFocus = 0;
   let nearTownBuilding = null;
   let invDrag = null;
+  let skillDrag = null;
+  let skillHotbarBoxes = [];
+  let skillListBoxes = [];
   let gearSlotBoxes = [];
   let bagItemBoxes = [];
   let bagDropZone = null;
@@ -8060,54 +8204,64 @@
 
     if (rpgUi === 'skills') {
       menuHitBoxes = [];
+      skillListBoxes = [];
+      // основная панель слева
+      const px = 80, py = 40, pw = 420, ph = 370;
       ctx.fillStyle = '#1a2035';
-      ctx.fillRect(180, 40, 440, 370);
+      ctx.fillRect(px, py, pw, ph);
       ctx.strokeStyle = '#f7d44a';
       ctx.lineWidth = 3;
-      ctx.strokeRect(180, 40, 440, 370);
+      ctx.strokeRect(px, py, pw, ph);
       ctx.fillStyle = '#f7d44a';
       ctx.font = 'bold 22px Georgia, serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Навыки (X)', W / 2, 75);
+      ctx.fillText('Навыки (X)', px + pw / 2, 75);
 
       // полоска XP
       ctx.fillStyle = '#cfd8dc';
       ctx.font = '13px Segoe UI, Arial';
-      ctx.fillText('Уровень героя: ' + townPlayer.level, W / 2, 100);
-      drawCrystalBar(220, 112, 360, 16, townPlayer.xpToNext ? townPlayer.xp / townPlayer.xpToNext : 0, '#81d4fa', '#1565c0');
+      ctx.fillText('Уровень героя: ' + townPlayer.level, px + pw / 2, 100);
+      drawCrystalBar(px + 30, 112, pw - 60, 16, townPlayer.xpToNext ? townPlayer.xp / townPlayer.xpToNext : 0, '#81d4fa', '#1565c0');
       ctx.fillStyle = '#fff';
       ctx.font = '11px Segoe UI, Arial';
-      ctx.fillText('XP ' + townPlayer.xp + ' / ' + townPlayer.xpToNext, W / 2, 124);
+      ctx.fillText('XP ' + townPlayer.xp + ' / ' + townPlayer.xpToNext, px + pw / 2, 124);
 
       ctx.textAlign = 'left';
       ctx.font = '15px Segoe UI, Arial';
       let y = 160;
       for (let i = 0; i < townPlayer.skills.length; i++) {
         const s = townPlayer.skills[i];
-        menuHitBoxes.push({ x: 210, y: y - 16, w: 380, h: 48, index: i });
+        const row = { x: px + 20, y: y - 16, w: pw - 40, h: 48, index: i };
+        menuHitBoxes.push(row);
+        skillListBoxes.push(row);
         const hovered = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
         const sel = i === (townPlayer.activeSkill || 0) || hovered;
         if (sel) {
           ctx.fillStyle = hovered ? 'rgba(255, 193, 7, 0.35)' : 'rgba(57,73,171,0.55)';
-          ctx.fillRect(210, y - 16, 380, 48);
+          ctx.fillRect(row.x, row.y, row.w, row.h);
           ctx.strokeStyle = hovered ? '#fff59d' : 'rgba(255,255,255,0.25)';
           ctx.lineWidth = hovered ? 3 : 1;
-          ctx.strokeRect(210, y - 16, 380, 48);
+          ctx.strokeRect(row.x, row.y, row.w, row.h);
         }
+        ctx.fillStyle = s.color || '#90caf9';
+        ctx.beginPath();
+        ctx.arc(row.x + 22, y + 6, 10, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = sel ? '#fff59d' : '#fff';
-        ctx.fillText((i + 1) + '. ' + s.name + '  —  ур. ' + s.level + (sel ? '  ◀' : ''), 230, y);
+        ctx.fillText(s.name + '  —  ур. ' + s.level + (sel ? '  ◀' : ''), row.x + 42, y);
         ctx.fillStyle = '#90a4ae';
-        ctx.fillText('Урон навыка: ' + s.damage, 250, y + 20);
+        ctx.fillText('Урон: ' + s.damage + ' · перетащи вправо на слот', row.x + 42, y + 20);
         y += 54;
       }
       if (!townPlayer.skills.length) {
         ctx.fillStyle = '#bbb';
-        ctx.fillText('Пока нет навыков', 280, 200);
+        ctx.fillText('Пока нет навыков', px + 100, 200);
       }
       ctx.fillStyle = '#b0bec5';
       ctx.font = '13px Segoe UI, Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('Наведи — выделить · ЛКМ — выбрать · X/Esc — закрыть', W / 2, 390);
+      ctx.fillText('Перетащи навык в «Быстрый доступ» справа · X/Esc', px + pw / 2, 390);
+      drawSkillHotbar();
       return;
     }
 
@@ -8429,6 +8583,82 @@
     }
   }
 
+  function drawSkillHotbar() {
+    if (!townPlayer || rpgUi !== 'skills') {
+      skillHotbarBoxes = [];
+      return;
+    }
+    ensureSkillHotbar();
+    skillHotbarBoxes = [];
+    const labels = ['ПКМ', 'E', 'Q'];
+    const slot = 56;
+    const gap = 12;
+    // справа от панели навыков (панель: x=80 w=420 → правый край 500)
+    const panelRight = 500;
+    const bx = panelRight + 18;
+    const by = 120;
+    const boxW = slot + 28;
+    const boxH = labels.length * (slot + gap) + 48;
+
+    ctx.fillStyle = 'rgba(16, 22, 40, 0.92)';
+    ctx.fillRect(bx - 14, by - 36, boxW + 12, boxH);
+    ctx.strokeStyle = '#f7d44a';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 14, by - 36, boxW + 12, boxH);
+    ctx.fillStyle = '#f7d44a';
+    ctx.font = 'bold 14px Georgia, serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Быстрый', bx + slot / 2, by - 16);
+    ctx.fillText('доступ', bx + slot / 2, by - 2);
+
+    for (let i = 0; i < 3; i++) {
+      const sx = bx;
+      const sy = by + 12 + i * (slot + gap);
+      skillHotbarBoxes.push({ x: sx, y: sy, w: slot, h: slot, slot: i });
+      const sk = getHotbarSkill(i);
+      const hovered = uiHover && uiHover.kind === 'hotbar' && uiHover.index === i;
+      const g = ctx.createLinearGradient(sx, sy, sx + slot, sy + slot);
+      g.addColorStop(0, hovered ? 'rgba(255, 235, 150, 0.5)' : 'rgba(200, 235, 255, 0.28)');
+      g.addColorStop(1, hovered ? 'rgba(255, 160, 0, 0.35)' : 'rgba(80, 120, 180, 0.3)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx, sy, slot, slot);
+      ctx.strokeStyle = hovered ? '#fff59d' : 'rgba(230, 250, 255, 0.75)';
+      ctx.lineWidth = hovered ? 3 : 2;
+      ctx.strokeRect(sx + 0.5, sy + 0.5, slot - 1, slot - 1);
+
+      if (sk) {
+        ctx.fillStyle = sk.color || '#7e57c2';
+        ctx.beginPath();
+        ctx.arc(sx + slot / 2, sy + slot / 2 - 4, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px Segoe UI, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText((sk.name || '').slice(0, 6), sx + slot / 2, sy + slot - 8);
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.font = '22px Segoe UI, Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('+', sx + slot / 2, sy + slot / 2 + 8);
+      }
+      ctx.fillStyle = '#ffe082';
+      ctx.font = 'bold 11px Segoe UI, Arial';
+      ctx.fillText(labels[i], sx + slot / 2, sy + slot + 12);
+    }
+
+    if (skillDrag && skillDrag.mx != null) {
+      const sk = skillDrag.skill;
+      ctx.fillStyle = 'rgba(30,40,70,0.9)';
+      ctx.fillRect(skillDrag.mx - 40, skillDrag.my - 14, 80, 28);
+      ctx.strokeStyle = '#f7d44a';
+      ctx.strokeRect(skillDrag.mx - 40, skillDrag.my - 14, 80, 28);
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Segoe UI, Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText((sk && sk.name ? sk.name : '').slice(0, 12), skillDrag.mx, skillDrag.my + 4);
+    }
+  }
+
   function enterHub(from) {
     if (rpgUi !== 'levelup') closeRpgUi();
     insideHouse = null;
@@ -8436,7 +8666,7 @@
     gameState = STATE.HUB;
     levelSpan.textContent = 'Поляна';
     document.getElementById('controlsHint').innerHTML =
-      '<kbd>WASD</kbd> путь · <kbd>ЛКМ</kbd> удар · <kbd>Q</kbd> навык · <kbd>Shift</kbd> зелье · <kbd>Пробел</kbd> бег (скороходы) · <kbd>Z</kbd>/<kbd>X</kbd>';
+      '<kbd>WASD</kbd> путь · <kbd>ЛКМ</kbd> удар · <kbd>ПКМ</kbd>/<kbd>E</kbd>/<kbd>Q</kbd> навыки · <kbd>Shift</kbd> зелье · <kbd>Z</kbd>/<kbd>X</kbd>';
     townPlayer.x = 400;
     townPlayer.y = from === 'city' ? 80 : 225;
     if (from === 'slimes') townPlayer.y = 300;
@@ -9338,9 +9568,7 @@
       }
       if (e.key === 'e' || e.key === 'E' || e.key === 'у' || e.key === 'У') {
         e.preventDefault();
-        if (gameState === STATE.DUNGEON) tryOpenDungeonChest();
-        else if (gameState === STATE.GATHER || gameState === STATE.GUILD_GATHER) tryGatherNode();
-        else tryInteractBuilding();
+        tryUseEKey();
         return;
       }
       // C / С — ранг гильдии
@@ -9356,13 +9584,10 @@
         usePotionSlot();
         return;
       }
-      // Q / Й — второй навык (если один — первый)
+      // Q / Й — третий слот навыков
       if (!e.repeat && (e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q' || e.key === 'й' || e.key === 'Й')) {
         e.preventDefault();
-        if (townSkillCd <= 0) {
-          const idx = townPlayer.skills.length > 1 ? 1 : 0;
-          castTownSkill(idx);
-        }
+        castHotbarSlot(2);
         return;
       }
     }
@@ -9435,7 +9660,21 @@
       invDrag.mx = p.x;
       invDrag.my = p.y;
     }
+    if (skillDrag) {
+      skillDrag.mx = p.x;
+      skillDrag.my = p.y;
+    }
     updateUiHover(p.x, p.y);
+  });
+
+  canvas.addEventListener('contextmenu', ev => {
+    ev.preventDefault();
+    const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+      gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
+    if (inRpg && townPlayer && !rpgUi && !insideHouse && !paused) {
+      castHotbarSlot(0);
+    }
   });
 
   canvas.addEventListener('mousedown', ev => {
@@ -9447,7 +9686,39 @@
     const p = canvasPos(ev);
     mousePos.x = p.x;
     mousePos.y = p.y;
+
+    // ПКМ — первый слот навыков
+    if (ev.button === 2) {
+      const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
+        gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+        gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
+      if (inRpg && townPlayer && !rpgUi && !insideHouse && !paused) {
+        castHotbarSlot(0);
+        ev.preventDefault();
+      }
+      return;
+    }
+
     if (paused || ev.button !== 0) return;
+
+    // перетаскивание с хотбара
+    for (let b of skillHotbarBoxes) {
+      if (hitBox(p.x, p.y, b)) {
+        const sk = getHotbarSkill(b.slot);
+        if (sk) {
+          skillDrag = {
+            skill: sk,
+            skillId: sk.id,
+            fromHotbarSlot: b.slot,
+            fromSkillIndex: null,
+            mx: p.x,
+            my: p.y
+          };
+          ev.preventDefault();
+          return;
+        }
+      }
+    }
 
     // 1) кнопки внутри дома (гильдия / магазины) — в приоритете
     if (insideHouse && !rpgUi && handleHouseUiClick(p.x, p.y)) {
@@ -9469,6 +9740,27 @@
         if (guildWelcomeLine >= GUILD_WELCOME_LINES.length) rpgUi = null;
         ev.preventDefault();
         return;
+      }
+      // навыки — старт перетаскивания на хотбар
+      if (rpgUi === 'skills') {
+        for (let b of skillListBoxes) {
+          if (hitBox(p.x, p.y, b)) {
+            const sk = townPlayer.skills[b.index];
+            if (sk) {
+              skillDrag = {
+                skill: sk,
+                skillId: sk.id,
+                fromHotbarSlot: null,
+                fromSkillIndex: b.index,
+                mx: p.x,
+                my: p.y
+              };
+              townPlayer.activeSkill = b.index;
+              ev.preventDefault();
+              return;
+            }
+          }
+        }
       }
       // кузня — старт перетаскивания из мешка / ячеек
       if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade') {
@@ -9609,13 +9901,41 @@
   }
 
   canvas.addEventListener('mouseup', ev => {
+    const p = canvasPos(ev);
+
+    if (skillDrag && townPlayer) {
+      ensureSkillHotbar();
+      let placed = false;
+      for (let b of skillHotbarBoxes) {
+        if (hitBox(p.x, p.y, b)) {
+          const prev = townPlayer.skillHotbar[b.slot];
+          townPlayer.skillHotbar[b.slot] = skillDrag.skillId;
+          if (skillDrag.fromHotbarSlot != null && skillDrag.fromHotbarSlot !== b.slot) {
+            townPlayer.skillHotbar[skillDrag.fromHotbarSlot] = prev || null;
+          }
+          placed = true;
+          messageDiv.textContent = (skillDrag.skill.name || 'Навык') + ' → слот ' + ['ПКМ', 'E', 'Q'][b.slot];
+          setTimeout(() => {
+            if (messageDiv.textContent.indexOf('→ слот') !== -1) messageDiv.textContent = '';
+          }, 900);
+          break;
+        }
+      }
+      // сброс со слота хотбара мимо — очистить слот
+      if (!placed && skillDrag.fromHotbarSlot != null) {
+        townPlayer.skillHotbar[skillDrag.fromHotbarSlot] = null;
+      }
+      skillDrag = null;
+      updateUiHover(p.x, p.y);
+      ev.preventDefault();
+      return;
+    }
+
     if (!invDrag || !townPlayer) {
       invDrag = null;
-      const p = canvasPos(ev);
       updateUiHover(p.x, p.y);
       return;
     }
-    const p = canvasPos(ev);
     let dropped = false;
 
     if (rpgUi === 'forge_repair' || rpgUi === 'forge_upgrade') {
@@ -9642,6 +9962,7 @@
 
   canvas.addEventListener('mouseleave', () => {
     invDrag = null;
+    skillDrag = null;
     uiHover = null;
     setGameCursor('default');
   });
