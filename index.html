@@ -8491,13 +8491,14 @@
       fieldSlimes.push({
         x: 120 + i * 130 + rand(-20, 20),
         y: 220 + rand(-40, 80),
-        w: 28, h: 22, r: 16,
-        hp: 4, maxHp: 4,
+        w: 30, h: 24, r: 17,
+        hp: 6, maxHp: 6,
         alive: true,
-        speed: 1.15,
+        speed: 1.2,
         atkCd: 0,
         bob: rand(0, Math.PI * 2),
-        avoidSign: i % 2 === 0 ? 1 : -1
+        avoidSign: i % 2 === 0 ? 1 : -1,
+        damage: 2
       });
     }
     unstickFromObstacles(fieldSlimes);
@@ -9028,7 +9029,7 @@
       const d = Math.hypot(dx, dy) || 1;
       if (s.atkCd > 0) s.atkCd--;
       if (d < 22 && s.atkCd <= 0) {
-        hurtPlayer(1);
+        hurtPlayer(s.damage || 2);
         s.atkCd = 40;
       }
     }
