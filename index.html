@@ -86,11 +86,100 @@
     }
     button:hover { background: #5a79b5; transform: scale(1.03); }
     #message {
-      margin-top: 8px;
+      margin: 0 0 8px;
       font-size: 18px;
       font-weight: bold;
       color: #f7d44a;
-      height: 26px;
+      min-height: 26px;
+      height: auto;
+      text-align: center;
+    }
+    #message:empty {
+      margin: 0;
+      min-height: 0;
+    }
+    .fs-btn {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 2000;
+      width: 48px;
+      height: 48px;
+      margin: 0;
+      padding: 0;
+      border-radius: 14px;
+      border: 2px solid #3a415a;
+      background: #181e2e;
+      color: #f7d44a;
+      font-size: 22px;
+      line-height: 1;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+    }
+    .fs-btn:hover { background: #2a3348; transform: scale(1.06); }
+    .game-wrapper.is-fullscreen {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      margin: 0;
+      padding: 10px 12px 72px;
+      border-radius: 0;
+      box-shadow: none;
+      background: #0a0c14;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      z-index: 1500;
+      overflow: hidden;
+    }
+    .game-wrapper.is-fullscreen .canvas-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 0;
+    }
+    .game-wrapper.is-fullscreen #gameCanvas {
+      width: min(100vw - 24px, calc((100vh - 140px) * 800 / 450)) !important;
+      height: auto !important;
+      max-height: calc(100vh - 140px) !important;
+      aspect-ratio: 800 / 450;
+    }
+    .game-wrapper.is-fullscreen .info,
+    .game-wrapper.is-fullscreen .controls {
+      position: relative;
+      z-index: 2;
+      margin: 6px 0 0;
+    }
+    .game-wrapper.is-fullscreen #message {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      margin: 0;
+      padding: 8px 18px;
+      border-radius: 12px;
+      background: rgba(16, 20, 36, 0.88);
+      border: 1px solid #3a415a;
+      z-index: 5;
+      pointer-events: none;
+      height: auto;
+      min-height: 0;
+      max-width: min(90vw, 720px);
+      text-align: center;
+    }
+    .game-wrapper.is-fullscreen #message:empty {
+      display: none;
+      padding: 0;
+      border: none;
+      background: none;
+    }
+    body.fs-lock {
+      overflow: hidden;
+      height: 100vh;
     }
     .canvas-wrap {
       position: relative;
@@ -253,9 +342,9 @@
       justify-content: center;
     }
     .class-card {
-      width: 190px;
+      width: 168px;
       margin-left: 0;
-      padding: 16px 14px 18px;
+      padding: 14px 10px 16px;
       border-radius: 18px;
       border: 3px solid rgba(255,255,255,0.25);
       background: linear-gradient(180deg, #3a3158, #241e38);
@@ -264,15 +353,17 @@
       color: #fff;
     }
     .class-card:hover { transform: translateY(-3px) scale(1.03); }
-    .class-card .cn { font-size: 22px; font-weight: bold; margin-bottom: 6px; }
-    .class-card .cd { font-size: 13px; color: #c5cae9; line-height: 1.35; }
+    .class-card .cn { font-size: 20px; font-weight: bold; margin-bottom: 6px; }
+    .class-card .cd { font-size: 12px; color: #c5cae9; line-height: 1.35; }
     .class-card.mage { border-color: #7e57c2; }
     .class-card.swordsman { border-color: #ef5350; }
     .class-card.archer { border-color: #66bb6a; }
+    .class-card.summoner { border-color: #ffb74d; }
   </style>
 </head>
 <body>
 <div class="game-wrapper">
+  <div id="message"></div>
   <div class="canvas-wrap">
     <canvas id="gameCanvas" width="800" height="450"></canvas>
     <div id="menuOverlay" class="visible">
@@ -303,6 +394,10 @@
           <div class="cn">Лучник</div>
           <div class="cd">Старт: 5 HP<br>Лук + «Выстрел» 1 ур.</div>
         </button>
+        <button class="class-card summoner" data-class="summoner" type="button">
+          <div class="cn">Призыватель</div>
+          <div class="cd">Старт: 5 HP · 5 маны<br>«Скелет-страж» · сломанный тотем</div>
+        </button>
       </div>
     </div>
     <div id="pauseOverlay">
@@ -326,8 +421,8 @@
   <div class="controls" id="controlsHint">
     <kbd>WASD</kbd>/<kbd>стрелки</kbd> – ход &nbsp;|&nbsp; в Марио: <kbd>A/D</kbd> + <kbd>W</kbd>/<kbd>Пробел</kbd> прыжок
   </div>
-  <div id="message"></div>
 </div>
+<button id="fsBtn" class="fs-btn" type="button" title="На весь экран / свернуть">⛶</button>
 
 <script>
   // ============================================================
@@ -474,6 +569,93 @@
   const livesSpan = document.getElementById('livesDisplay');
   const levelSpan = document.getElementById('levelDisplay');
   const messageDiv = document.getElementById('message');
+  const gameWrapper = document.querySelector('.game-wrapper');
+  const fsBtn = document.getElementById('fsBtn');
+
+  function refreshMessagePlacement() {
+    // в fullscreen все игровые сообщения сверху
+    const fs = gameWrapper.classList.contains('is-fullscreen');
+    const hasText = !!(messageDiv.textContent || '').trim();
+    messageDiv.classList.toggle('msg-top', fs && hasText);
+  }
+
+  new MutationObserver(refreshMessagePlacement).observe(messageDiv, {
+    childList: true, characterData: true, subtree: true
+  });
+
+  function isGameFullscreen() {
+    return document.fullscreenElement === gameWrapper || gameWrapper.classList.contains('is-fullscreen');
+  }
+
+  function syncFullscreenUi() {
+    const on = !!document.fullscreenElement || gameWrapper.classList.contains('is-fullscreen');
+    // если браузерный FS активен на wrapper — класс тоже
+    if (document.fullscreenElement === gameWrapper) gameWrapper.classList.add('is-fullscreen');
+    if (!document.fullscreenElement && gameWrapper.dataset.fsMode !== 'css') {
+      gameWrapper.classList.remove('is-fullscreen');
+    }
+    const active = gameWrapper.classList.contains('is-fullscreen');
+    document.body.classList.toggle('fs-lock', active);
+    if (fsBtn) fsBtn.textContent = active ? '⛶' : '⛶';
+    if (fsBtn) fsBtn.title = active ? 'Свернуть окно' : 'На весь экран';
+    refreshMessagePlacement();
+    setupCrispCanvas();
+  }
+
+  async function toggleGameFullscreen() {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        gameWrapper.classList.remove('is-fullscreen');
+        gameWrapper.dataset.fsMode = '';
+      } else if (gameWrapper.classList.contains('is-fullscreen') && gameWrapper.dataset.fsMode === 'css') {
+        gameWrapper.classList.remove('is-fullscreen');
+        gameWrapper.dataset.fsMode = '';
+      } else if (gameWrapper.requestFullscreen) {
+        await gameWrapper.requestFullscreen();
+        gameWrapper.classList.add('is-fullscreen');
+        gameWrapper.dataset.fsMode = 'native';
+      } else {
+        gameWrapper.classList.add('is-fullscreen');
+        gameWrapper.dataset.fsMode = 'css';
+      }
+    } catch (err) {
+      // fallback без Permission / iframe
+      gameWrapper.classList.toggle('is-fullscreen');
+      gameWrapper.dataset.fsMode = gameWrapper.classList.contains('is-fullscreen') ? 'css' : '';
+    }
+    syncFullscreenUi();
+  }
+
+  if (fsBtn) fsBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    toggleGameFullscreen();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      gameWrapper.classList.remove('is-fullscreen');
+      gameWrapper.dataset.fsMode = '';
+    }
+    syncFullscreenUi();
+  });
+
+  // колесо: листать навыки на левелапе, не скроллить страницу
+  function onGameWheel(ev) {
+    if (rpgUi === 'levelup' && levelUpChoices.length) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.deltaY > 0) levelUpFocus = Math.min(levelUpChoices.length - 1, levelUpFocus + 1);
+      else levelUpFocus = Math.max(0, levelUpFocus - 1);
+      ensureLevelUpInView();
+      return;
+    }
+    if (gameWrapper.classList.contains('is-fullscreen')) {
+      ev.preventDefault();
+    }
+  }
+  canvas.addEventListener('wheel', onGameWheel, { passive: false });
+  gameWrapper.addEventListener('wheel', onGameWheel, { passive: false });
+
   const gameOverOverlay = document.getElementById('gameOverOverlay');
   const overTitle = document.getElementById('overTitle');
   const hudClassic = document.getElementById('hudClassic');
@@ -3045,6 +3227,14 @@
       return;
     }
     if (gameState === STATE.CLASS_SELECT) return;
+    if (townPlayer && (
+      gameState === STATE.CITY || gameState === STATE.HUB ||
+      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
+      gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER
+    )) {
+      updateLevelUpSparkle();
+      updateSummonedAlly();
+    }
     if (gameState === STATE.CITY) {
       updateCity();
       return;
@@ -3806,7 +3996,7 @@
       id: 'mage',
       title: 'Маг',
       color: '#5e35b1',
-      blurb: '5 HP · 5 маны · Шар 1 ур.',
+      blurb: '5 HP · 5 маны · Шар',
       baseHp: 5,
       baseMana: 5,
       equipment: [{ id: 'orb_focus', name: 'Фокус шара', damage: 1 }],
@@ -3830,32 +4020,126 @@
       baseHp: 5,
       baseMana: 0,
       equipment: [{ id: 'bow', name: 'Лук', damage: 1 }],
-      skills: [{ id: 'shot', name: 'Выстрел из лука', level: 1, damage: 1, kind: 'shot', color: '#8d6e63' }]
+      skills: [{ id: 'shot', name: 'Выстрел', level: 1, damage: 1, kind: 'shot', color: '#8d6e63' }]
+    },
+    summoner: {
+      id: 'summoner',
+      title: 'Призыватель',
+      color: '#ef6c00',
+      blurb: '5 HP · 5 маны · Скелет-страж',
+      baseHp: 5,
+      baseMana: 5,
+      equipment: [{
+        id: 'totem_novice',
+        name: 'Тотем призыва новичка',
+        damage: 1,
+        broken: true
+      }],
+      skills: [{
+        id: 'skel_guard',
+        name: 'Призыв: Скелет-страж',
+        level: 1,
+        damage: 1,
+        kind: 'skel_guard',
+        color: '#b0bec5',
+        duration: 0
+      }]
     }
   };
 
-  // Доп. навыки класса — выбор при повышении уровня
-  const CLASS_SKILL_POOL = {
+  // Модификации стартового навыка (выбор на ветке)
+  const CLASS_SKILL_MODS = {
     mage: [
-      { id: 'orb', name: 'Шар', level: 1, damage: 1, kind: 'orb', color: '#7e57c2' },
-      { id: 'frost', name: 'Мороз', level: 1, damage: 1, kind: 'orb', color: '#81d4fa' },
-      { id: 'spark', name: 'Искра', level: 1, damage: 1, kind: 'orb', color: '#ffeb3b' }
+      { id: 'twin', name: 'Сдвоенный заряд', desc: '2 шара · урон каждого −30%', baseId: 'orb' },
+      { id: 'heavy', name: 'Тяжелый шар', desc: 'Медленный · отбрасывает · пробивает 1', baseId: 'orb' },
+      { id: 'charged', name: 'Заряжаемый шар', desc: 'Зажми ПКМ · мана×3 · урон×3', baseId: 'orb' }
     ],
     swordsman: [
-      { id: 'slash', name: 'Рассекание', level: 1, damage: 1, kind: 'slash', color: '#ef5350' },
-      { id: 'thrust', name: 'Выпад', level: 1, damage: 1, kind: 'slash', color: '#ff7043' },
-      { id: 'spin', name: 'Вихрь', level: 1, damage: 1, kind: 'slash', color: '#e53935' }
+      { id: 'vertical', name: 'Вертикаль', desc: 'Урон ×1.5 · только 1 цель', baseId: 'slash' },
+      { id: 'whirl', name: 'Круговой ветер', desc: 'Радиус +50% · урон −20%', baseId: 'slash' },
+      { id: 'bloody', name: 'Кровавое рассекание', desc: 'Добавляет кровотечение (DoT)', baseId: 'slash' }
     ],
     archer: [
-      { id: 'shot', name: 'Выстрел из лука', level: 1, damage: 1, kind: 'shot', color: '#8d6e63' },
-      { id: 'pierce', name: 'Пробитие', level: 1, damage: 1, kind: 'shot', color: '#5d4037' },
-      { id: 'multishot', name: 'Тройной выстрел', level: 1, damage: 1, kind: 'multishot', color: '#6d4c41' }
+      { id: 'precise', name: 'Точный выстрел', desc: 'Урон растёт с дистанцией', baseId: 'shot' },
+      { id: 'fan', name: 'Тройной веер', desc: '3 стрелы веером', baseId: 'shot' },
+      { id: 'rapid', name: 'Быстрая перезарядка', desc: 'КД выстрела −40%', baseId: 'shot' }
+    ],
+    summoner: [
+      { id: 'berserk', name: 'Костяной берсерк', desc: 'Миньон −5% HP/с · урон и скорость +50%', baseId: 'skel_guard' },
+      { id: 'shield', name: 'Щитоносец', desc: '+50% защиты · блок 1 снаряда в тебя', baseId: 'skel_guard' },
+      { id: 'poison', name: 'Отравленный клинок', desc: 'Яд (DoT) · базовый урон −15%', baseId: 'skel_guard' },
+      { id: 'spear', name: 'Копейщик', desc: 'Дальняя атака · бьёт из-за танка', baseId: 'skel_guard' }
     ]
   };
 
+  // Новые навыки по уровню персонажа
+  const CLASS_SKILL_UNLOCKS = {
+    mage: [
+      { atLevel: 2, skill: { id: 'frost_spark', name: 'Ледяная искра', level: 1, damage: 0, kind: 'frost_spark', color: '#81d4fa' } },
+      { atLevel: 3, skill: { id: 'magic_fist', name: 'Магический кулак', level: 1, damage: 1, kind: 'magic_fist', color: '#b39ddb' } },
+      { atLevel: 4, skill: { id: 'cold_wave', name: 'Волна холода', level: 1, damage: 2, kind: 'cold_wave', color: '#4fc3f7' } },
+      { atLevel: 5, skill: { id: 'shatter', name: 'Раскол', level: 1, damage: 1, kind: 'shatter', color: '#ce93d8' } }
+    ],
+    swordsman: [
+      { atLevel: 2, skill: { id: 'provoke', name: 'Провокация / Рывок', level: 1, damage: 1, kind: 'provoke', color: '#ff7043' } },
+      { atLevel: 3, skill: { id: 'steel_block', name: 'Стальной блок', level: 1, damage: 0, kind: 'steel_block', color: '#90a4ae' } },
+      { atLevel: 4, skill: { id: 'deadly_thrust', name: 'Смертельный выпад', level: 1, damage: 2, kind: 'deadly_thrust', color: '#e53935' } },
+      { atLevel: 5, skill: { id: 'mad_blade', name: 'Бешеный клинок', level: 1, damage: 1, kind: 'mad_blade', color: '#c62828' } }
+    ],
+    archer: [
+      { atLevel: 2, skill: { id: 'dagger_kick', name: 'Укол кинжалом', level: 1, damage: 1, kind: 'dagger_kick', color: '#8d6e63' } },
+      { atLevel: 3, skill: { id: 'snare', name: 'Ловушка-силок', level: 1, damage: 0, kind: 'snare', color: '#a1887f' } },
+      { atLevel: 4, skill: { id: 'hawk_eye', name: 'Меткий глаз', level: 1, damage: 0, kind: 'hawk_eye', color: '#ffd54f' } },
+      { atLevel: 5, skill: { id: 'sniper', name: 'Снайперский залп', level: 1, damage: 3, kind: 'sniper', color: '#5d4037', charge: true } }
+    ],
+    summoner: [
+      { atLevel: 2, skill: { id: 'sacrifice', name: 'Жертвоприношение', level: 1, damage: 0, kind: 'sacrifice', color: '#ef5350' } },
+      { atLevel: 3, skill: { id: 'skel_mage', name: 'Призыв: Скелет-маг', level: 1, damage: 1, kind: 'skel_mage', color: '#81d4fa' } },
+      { atLevel: 4, skill: { id: 'meat_wall', name: 'Мясная стена', level: 1, damage: 0, kind: 'meat_wall', color: '#8d6e63' } },
+      { atLevel: 5, skill: { id: 'possess', name: 'Одержимость', level: 1, damage: 0, kind: 'possess', color: '#7e57c2' } }
+    ]
+  };
+
+  const CHICKEN_SKILL = {
+    id: 'chicken',
+    name: 'Призыв курицы',
+    level: 1,
+    damage: 0,
+    kind: 'chicken',
+    color: '#ffcc80',
+    duration: 180
+  };
+
+  const SEEKER_SHOP = [
+    {
+      id: 'totem_chicken',
+      name: 'Тотем призыва курицы',
+      slot: 'weapon',
+      damage: 1,
+      itemLevel: 1,
+      priceGold: 3,
+      allowSkills: ['chicken'],
+      teachSkill: CHICKEN_SKILL,
+      desc: '3🟡 · навык «Призыв курицы» · отвлекает врагов'
+    }
+  ];
+
   let levelUpChoices = [];
   let levelUpFocus = 0;
+  let levelUpScroll = 0;
+  const LEVELUP_VISIBLE = 4;
   let pendingLevelUps = 0;
+  let levelUpSparkleActive = false;
+  let levelUpSparkleUntil = 0;
+  let summonedAlly = null;
+  let summonedMinions = [];
+  let fieldTraps = [];
+  let skillCharge = null;
+  let playerBlockCharges = 0;
+  let hawkEyeTimer = 0;
+  let possessTimer = 0;
+  let possessMinionId = null;
+  let skillModsOwned = {};
 
   let townPlayer = null;
   let townProjectiles = [];
@@ -3895,11 +4179,13 @@
     if (elapsed >= DAY_NIGHT_MS) {
       dayNight.isNight = !dayNight.isNight;
       dayNight.phaseStart = Date.now();
+      const inDungeon = gameState === STATE.DUNGEON || gameState === STATE.GUILD_DUNGEON;
       const inWorld = gameState === STATE.MAIN || gameState === STATE.BOSS ||
         gameState === STATE.CITY || gameState === STATE.HUB ||
-        gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
-        gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
-      if (inWorld) {
+        gameState === STATE.SLIMES || gameState === STATE.GATHER ||
+        gameState === STATE.GUILD_GATHER;
+      // в данже время идёт, но сообщение о смене фазы не показываем
+      if (inWorld && !inDungeon) {
         messageDiv.textContent = dayNight.isNight ? 'Наступила ночь...' : 'Наступил день!';
         setTimeout(() => {
           if (messageDiv.textContent === 'Наступила ночь...' || messageDiv.textContent === 'Наступил день!') {
@@ -3922,24 +4208,30 @@
     return (dayNight.isNight ? 'Ночь' : 'День') + ' ' + t;
   }
 
+  function isDungeonArea() {
+    return gameState === STATE.DUNGEON || gameState === STATE.GUILD_DUNGEON;
+  }
+
+  function hpBarBox() {
+    if (!townPlayer) return { x: W - 158, left: W - 164, boxH: 56 };
+    const usesMana = townPlayer.maxMana > 0;
+    const boxH = usesMana ? 72 : 56;
+    const w = 140;
+    const x = W - 158;
+    return { x: x, left: x - 6, w: w, boxH: boxH };
+  }
+
   function drawDayNightOverlay(opts) {
     opts = opts || {};
     const soft = !!opts.soft;
+    // в данже ночь/луна не рисуются — время всё равно идёт в updateDayNight
+    if (isDungeonArea()) return;
+
     if (dayNight.isNight) {
-      // в основной игре небо уже ночное — лёгкое затемнение, без второй луны
       ctx.fillStyle = soft ? 'rgba(8, 12, 40, 0.18)' : 'rgba(8, 12, 40, 0.48)';
       ctx.fillRect(0, 0, W, H);
       if (!soft) {
-        // луна
-        ctx.fillStyle = '#fff9c4';
-        ctx.beginPath();
-        ctx.arc(700, 50, 22, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(8, 12, 40, 0.48)';
-        ctx.beginPath();
-        ctx.arc(710, 44, 18, 0, Math.PI * 2);
-        ctx.fill();
-        // звёзды
+        // звёзды (луна — слева от HP, рисуется в drawHpBar)
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         for (let i = 0; i < 28; i++) {
           const sx = (i * 97 + 40) % W;
@@ -3951,17 +4243,32 @@
         ctx.globalAlpha = 1;
       }
     } else if (!soft) {
-      // лёгкий дневной блик (не в основной — там уже яркое небо)
       ctx.fillStyle = 'rgba(255, 250, 200, 0.04)';
       ctx.fillRect(0, 0, W, H);
     }
-    // индикатор
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.fillRect(W / 2 - 55, 8, 110, 22);
     ctx.fillStyle = dayNight.isNight ? '#90caf9' : '#ffe082';
     ctx.font = 'bold 12px Segoe UI, Arial';
     ctx.textAlign = 'center';
     ctx.fillText(dayNightLabel(), W / 2, 23);
+    // луна поверх затемнения, слева от полосок HP
+    if (dayNight.isNight && !soft) drawMoonNearHp();
+  }
+
+  function drawMoonNearHp() {
+    if (!dayNight.isNight || isDungeonArea() || !townPlayer) return;
+    const box = hpBarBox();
+    const moonX = box.left - 30;
+    const moonY = 8 + box.boxH / 2;
+    ctx.fillStyle = '#fff9c4';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(8, 12, 40, 0.55)';
+    ctx.beginPath();
+    ctx.arc(moonX + 8, moonY - 5, 14, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function sleepAtTavern() {
@@ -4019,6 +4326,17 @@
     zoneObstacles = [];
     pendingLevelUps = 0;
     levelUpChoices = [];
+    levelUpSparkleActive = false;
+    levelUpSparkleUntil = 0;
+    summonedAlly = null;
+    summonedMinions = [];
+    fieldTraps = [];
+    skillCharge = null;
+    playerBlockCharges = 0;
+    hawkEyeTimer = 0;
+    possessTimer = 0;
+    possessMinionId = null;
+    skillModsOwned = {};
     townNpcs = [];
     readingNote = null;
     dungeonChest = null;
@@ -4137,8 +4455,14 @@
       load.slots.weapon = makeItem(we.id, we.name, 'weapon', {
         damage: we.damage || 1,
         itemLevel: 1,
-        desc: 'Стартовое оружие'
+        allowSkills: we.allowSkills ? we.allowSkills.slice() : null,
+        desc: we.id === 'totem_novice'
+          ? 'Сломанный тотем новичка · «Скелет-страж»'
+          : (we.allowSkills && we.allowSkills[0] === 'chicken'
+            ? 'Только «Призыв курицы»'
+            : 'Стартовое оружие')
       });
+      if (we.broken) markBroken(load.slots.weapon);
     }
     // немного руды для кузни
     load.bag.push(makeItem('ore_start_1', 'Руда', 'quest', { materialType: 'ore', desc: 'Материал для кузни', sellSilver: 1 }));
@@ -4188,6 +4512,17 @@
     guildWelcomeLine = 0;
     pendingLevelUps = 0;
     levelUpChoices = [];
+    levelUpSparkleActive = false;
+    levelUpSparkleUntil = 0;
+    summonedAlly = null;
+    summonedMinions = [];
+    fieldTraps = [];
+    skillCharge = null;
+    playerBlockCharges = 0;
+    hawkEyeTimer = 0;
+    possessTimer = 0;
+    possessMinionId = null;
+    skillModsOwned = {};
     cityIntroDone = true;
     gameState = STATE.CITY;
     setAdventureHud(true);
@@ -4795,11 +5130,13 @@
         tip += houseStolenIds[nearTownBuilding.id] ? ' · уже взломан' : ' · внутри: Взлом';
       }
       messageDiv.textContent = tip;
+    } else if (nearSeekerNpc() && !rpgUi && !messageDiv.textContent.startsWith('Получено') && !messageDiv.textContent.startsWith('Куплено')) {
+      messageDiv.textContent = 'Искатель  ·  [E] товары (тотем курицы 3🟡)';
     } else if (!nearTownBuilding && !rpgUi && !messageDiv.textContent.startsWith('Получено')) {
       const t = messageDiv.textContent;
       if (t.indexOf('[E]') !== -1 || t.indexOf('закрыт') !== -1 || t.indexOf('взломан') !== -1 ||
           t === 'Гильдия' || t === 'Цветы' || t === 'Оружейная' || t === 'Зелья' || t === 'Таверна' || t === 'Кузня' ||
-          t.indexOf('Дом ') === 0) {
+          t.indexOf('Дом ') === 0 || t.indexOf('Искатель') === 0) {
         messageDiv.textContent = '';
       }
     }
@@ -4808,9 +5145,11 @@
     updateTownNpcs();
   }
 
-  function castTownSkill(skillIndex) {
+  function castTownSkill(skillIndex, opts) {
+    opts = opts || {};
     const p = townPlayer;
     if (!p || !p.skills.length || rpgUi) return;
+    if (possessTimer > 0) return;
     const idx = skillIndex != null ? skillIndex : (p.activeSkill || 0);
     const sk = p.skills[idx] || p.skills[0];
     if (!sk) return;
@@ -4818,62 +5157,384 @@
     aimTownAt(mousePos.x, mousePos.y);
     const kind = sk.kind || sk.id;
     if (kind === 'steal' || kind === 'lockpick') {
-      if (nearTownBuilding && isEmptyHouse(nearTownBuilding)) {
-        tryLockpickHouse(nearTownBuilding);
-      } else {
-        messageDiv.textContent = 'Взлом: подойди к пустому дому и нажми E / кнопку';
-      }
+      if (nearTownBuilding && isEmptyHouse(nearTownBuilding)) tryLockpickHouse(nearTownBuilding);
+      else messageDiv.textContent = 'Взлом: подойди к пустому дому и нажми E / кнопку';
       return;
     }
-    // мана только у мага
-    if (p.classId === 'mage') {
-      const cost = 1;
-      if ((p.mana || 0) < cost) {
-        messageDiv.textContent = 'Не хватает маны!';
-        setTimeout(() => { if (messageDiv.textContent === 'Не хватает маны!') messageDiv.textContent = ''; }, 800);
-        return;
-      }
-      p.mana -= cost;
+    if (!weaponAllowsSkill(sk, kind)) return;
+    if (kind === 'chicken' && summonedAlly && summonedAlly.life > 0) {
+      messageDiv.textContent = 'Курица уже на поле!';
+      return;
     }
-    townSkillCd = 28;
+
     const cx = p.x + p.w / 2;
     const cy = p.y + p.h / 2;
     let dx = p.dirX, dy = p.dirY;
     if (!dx && !dy) { dx = p.facing; dy = 0; }
     const len = Math.hypot(dx, dy) || 1;
-    dx /= len;
-    dy /= len;
+    dx /= len; dy /= len;
     const col = sk.color || '#7e57c2';
+    const mod = sk.mod || null;
+    const chargeFrames = opts.chargeFrames || 0;
 
-    if (kind === 'orb') {
-      townProjectiles.push({
-        kind: 'orb', x: cx + dx * 10, y: cy + dy * 10, vx: dx * 4.2, vy: dy * 4.2,
-        r: 7 + sk.level, damage: sk.damage, life: 70, color: col
-      });
-    } else if (kind === 'slash') {
-      townProjectiles.push({
-        kind: 'slash', x: cx + dx * 18, y: cy + dy * 18, vx: 0, vy: 0,
-        r: 20 + sk.level * 2, damage: sk.damage, life: 12, color: col, dirX: dx, dirY: dy
-      });
-    } else if (kind === 'shot') {
-      townProjectiles.push({
-        kind: 'arrow', x: cx + dx * 8, y: cy + dy * 8, vx: dx * 5.5, vy: dy * 5.5,
-        r: 4, damage: sk.damage, life: 55, color: col
-      });
-    } else if (kind === 'multishot') {
-      for (let a = -0.25; a <= 0.25; a += 0.25) {
-        const ang = Math.atan2(dy, dx) + a;
-        townProjectiles.push({
-          kind: 'arrow', x: cx + Math.cos(ang) * 8, y: cy + Math.sin(ang) * 8,
-          vx: Math.cos(ang) * 5.2, vy: Math.sin(ang) * 5.2,
-          r: 4, damage: sk.damage, life: 50, color: col
+    let manaCost = 0;
+    if ((p.maxMana || 0) > 0) {
+      manaCost = 1;
+      if (kind === 'orb' && mod === 'charged') manaCost = Math.max(1, Math.min(3, 1 + Math.floor(chargeFrames / 40)));
+      if (kind === 'skel_mage' || kind === 'meat_wall' || kind === 'possess') manaCost = 2;
+      if ((p.mana || 0) < manaCost) {
+        messageDiv.textContent = 'Не хватает маны!';
+        setTimeout(() => { if (messageDiv.textContent === 'Не хватает маны!') messageDiv.textContent = ''; }, 800);
+        return;
+      }
+      p.mana -= manaCost;
+    }
+
+    if (kind === 'chicken') {
+      townSkillCd = 90;
+      const dur = sk.duration || 180;
+      summonedAlly = { kind: 'chicken', x: cx + dx * 36, y: cy + dy * 36, bob: 0, life: dur, maxLife: dur };
+      flashSkillMsg('Курица отвлекает врагов!');
+      return;
+    }
+    if (kind === 'skel_guard') {
+      summonedMinions = summonedMinions.filter(m => m.role !== 'guard');
+      townSkillCd = 50;
+      spawnMinion('guard', cx + dx * 28, cy + dy * 28, sk);
+      flashSkillMsg('Скелет-страж призван!');
+      return;
+    }
+    if (kind === 'skel_mage') {
+      summonedMinions = summonedMinions.filter(m => m.role !== 'mage');
+      townSkillCd = 60;
+      spawnMinion('mage', cx + dx * 24, cy + dy * 24, sk);
+      flashSkillMsg('Скелет-маг призван!');
+      return;
+    }
+    if (kind === 'meat_wall') {
+      townSkillCd = 100;
+      const dur = sk.duration || 180;
+      const base = Math.atan2(dy, dx);
+      for (let i = 0; i < 3; i++) {
+        const a = base + (-0.8 + i * 0.8);
+        summonedMinions.push({
+          id: 'meat_' + frame + '_' + i, role: 'meat', kind: 'meat',
+          x: cx + Math.cos(a) * 30, y: cy + Math.sin(a) * 30,
+          w: 16, h: 16, hp: 2, maxHp: 2, damage: 0.2, speed: 0.55,
+          bob: 0, life: dur, distract: true, atkCd: 0
         });
       }
+      flashSkillMsg('Мясная стена!');
+      return;
     }
-    messageDiv.textContent = sk.name + ' Lv.' + sk.level + ' (−' + sk.damage + ' урона)';
-    setTimeout(() => {
-      if (messageDiv.textContent.indexOf('урона') !== -1) messageDiv.textContent = '';
-    }, 900);
+    if (kind === 'sacrifice') {
+      const m = nearestMinion(cx, cy);
+      if (!m) { p.mana += manaCost; messageDiv.textContent = 'Нет миньона для жертвы'; return; }
+      townSkillCd = 45;
+      const boom = Math.max(2, Math.round(m.maxHp * 1.5));
+      applyAoEDamage(m.x + m.w / 2, m.y + m.h / 2, 55, boom);
+      removeMinion(m);
+      flashSkillMsg('Жертвоприношение! −' + boom);
+      return;
+    }
+    if (kind === 'possess') {
+      const m = nearestMinion(cx, cy);
+      if (!m) { p.mana += manaCost; messageDiv.textContent = 'Нет миньона для одержимости'; return; }
+      townSkillCd = 120;
+      possessTimer = 480;
+      possessMinionId = m.id;
+      m.possessed = true; m.invuln = true; m.damageMul = 3;
+      flashSkillMsg('Одержимость! 8 сек');
+      return;
+    }
+    if (kind === 'frost_spark') {
+      townSkillCd = 35;
+      townProjectiles.push({ kind: 'orb', x: cx + dx * 10, y: cy + dy * 10, vx: dx * 4.5, vy: dy * 4.5, r: 6, damage: 0, life: 55, color: col, slow: 180 });
+      flashSkillMsg('Ледяная искра — замедление');
+      return;
+    }
+    if (kind === 'magic_fist') {
+      townSkillCd = 50;
+      applyAoEDamage(cx, cy, 48, sk.damage, { knock: 10 });
+      townProjectiles.push({ kind: 'slash', x: cx, y: cy, vx: 0, vy: 0, r: 48, damage: 0, life: 10, color: col });
+      flashSkillMsg('Магический кулак!');
+      return;
+    }
+    if (kind === 'cold_wave') {
+      townSkillCd = 55;
+      for (let a = -0.55; a <= 0.55; a += 0.275) {
+        const ang = Math.atan2(dy, dx) + a;
+        townProjectiles.push({ kind: 'orb', x: cx + Math.cos(ang) * 8, y: cy + Math.sin(ang) * 8, vx: Math.cos(ang) * 3.6, vy: Math.sin(ang) * 3.6, r: 8, damage: sk.damage, life: 40, color: col, slow: 120 });
+      }
+      flashSkillMsg('Волна холода!');
+      return;
+    }
+    if (kind === 'shatter') {
+      sk.enabled = true;
+      townSkillCd = 20;
+      flashSkillMsg('Раскол: убийства шаром взрываются');
+      return;
+    }
+    if (kind === 'provoke') {
+      townSkillCd = 55;
+      const tgt = nearestAliveEnemy(cx, cy, 200);
+      if (tgt) {
+        const tx = tgt.x + (tgt.w || 0) / 2, ty = tgt.y + (tgt.h || 0) / 2;
+        const d = Math.hypot(tx - cx, ty - cy) || 1;
+        p.x += ((tx - cx) / d) * Math.min(80, Math.max(0, d - 18));
+        p.y += ((ty - cy) / d) * Math.min(80, Math.max(0, d - 18));
+        tgt.stunTimer = 60;
+        tgt.hp -= sk.damage;
+        if (tgt.hp <= 0) killEnemy(tgt);
+      }
+      flashSkillMsg('Рывок + оглушение!');
+      return;
+    }
+    if (kind === 'steel_block') {
+      townSkillCd = 70;
+      playerBlockCharges = 1;
+      flashSkillMsg('Стальной блок готов');
+      return;
+    }
+    if (kind === 'deadly_thrust') {
+      townSkillCd = 40;
+      townProjectiles.push({ kind: 'slash', x: cx + dx * 22, y: cy + dy * 22, vx: 0, vy: 0, r: 18, damage: sk.damage, life: 12, color: col, armorIgnore: 0.3 });
+      flashSkillMsg('Смертельный выпад!');
+      return;
+    }
+    if (kind === 'mad_blade') {
+      townSkillCd = 100;
+      const baseSlash = p.skills.find(s => s.id === 'slash');
+      const hitDmg = Math.max(1, Math.round((baseSlash ? baseSlash.damage : 1) * 0.7));
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          if (!townPlayer) return;
+          const px = townPlayer.x + townPlayer.w / 2, py = townPlayer.y + townPlayer.h / 2;
+          let ddx = townPlayer.dirX, ddy = townPlayer.dirY;
+          if (!ddx && !ddy) { ddx = townPlayer.facing; ddy = 0; }
+          const L = Math.hypot(ddx, ddy) || 1;
+          townProjectiles.push({ kind: 'slash', x: px + (ddx / L) * 18, y: py + (ddy / L) * 18, vx: 0, vy: 0, r: 22, damage: hitDmg, life: 10, color: col });
+        }, i * 90);
+      }
+      flashSkillMsg('Бешеный клинок!');
+      return;
+    }
+    if (kind === 'dagger_kick') {
+      townSkillCd = 40;
+      townProjectiles.push({ kind: 'slash', x: cx + dx * 16, y: cy + dy * 16, vx: 0, vy: 0, r: 16, damage: sk.damage, life: 10, color: col });
+      p.x -= dx * 28; p.y -= dy * 28;
+      flashSkillMsg('Укол и отпрыжка!');
+      return;
+    }
+    if (kind === 'snare') {
+      townSkillCd = 55;
+      fieldTraps.push({ x: cx + dx * 40, y: cy + dy * 40, r: 18, life: 600, armed: true });
+      flashSkillMsg('Ловушка установлена');
+      return;
+    }
+    if (kind === 'hawk_eye') {
+      townSkillCd = 90;
+      hawkEyeTimer = 300;
+      flashSkillMsg('Меткий глаз! 5 сек');
+      return;
+    }
+    if (kind === 'sniper') {
+      if (chargeFrames < 160) {
+        p.mana += manaCost;
+        messageDiv.textContent = 'Снайперский залп: держи ПКМ ~3 сек';
+        return;
+      }
+      townSkillCd = 80;
+      townProjectiles.push({ kind: 'arrow', x: cx + dx * 8, y: cy + dy * 8, vx: dx * 7, vy: dy * 7, r: 5, damage: sk.damage * 3, life: 90, color: col, pierce: 99 });
+      flashSkillMsg('Снайперский залп!');
+      return;
+    }
+
+    let cd = 28;
+    if (kind === 'shot' && mod === 'rapid') cd = Math.round(28 * 0.6);
+    townSkillCd = cd;
+
+    if (kind === 'orb') {
+      let dmg = sk.damage, spd = 4.2, pierce = 0, knock = 0;
+      if (mod === 'twin') dmg = Math.max(1, Math.round(sk.damage * 0.7));
+      if (mod === 'heavy') { spd = 2.4; knock = 14; pierce = 1; }
+      if (mod === 'charged') {
+        const t = Math.min(1, chargeFrames / 90);
+        dmg = Math.max(1, Math.round(sk.damage * (1 + t * 2)));
+      }
+      const shatterOn = !!(p.skills.find(s => s.id === 'shatter'));
+      const fireOrb = (ox, oy, ovx, ovy) => {
+        townProjectiles.push({ kind: 'orb', x: ox, y: oy, vx: ovx, vy: ovy, r: 7 + sk.level, damage: dmg, life: 70, color: col, pierce: pierce, knock: knock, shatter: shatterOn });
+      };
+      if (mod === 'twin') {
+        const ang = Math.atan2(dy, dx);
+        fireOrb(cx + Math.cos(ang - 0.2) * 10, cy + Math.sin(ang - 0.2) * 10, Math.cos(ang - 0.2) * spd, Math.sin(ang - 0.2) * spd);
+        fireOrb(cx + Math.cos(ang + 0.2) * 10, cy + Math.sin(ang + 0.2) * 10, Math.cos(ang + 0.2) * spd, Math.sin(ang + 0.2) * spd);
+      } else fireOrb(cx + dx * 10, cy + dy * 10, dx * spd, dy * spd);
+    } else if (kind === 'slash') {
+      let dmg = sk.damage, r = 20 + sk.level * 2, single = false, bleed = 0;
+      if (mod === 'vertical') { dmg = Math.round(sk.damage * 1.5); r = 16; single = true; }
+      if (mod === 'whirl') { r = Math.round(r * 1.5); dmg = Math.max(1, Math.round(sk.damage * 0.8)); }
+      if (mod === 'bloody') bleed = 90;
+      townProjectiles.push({ kind: 'slash', x: cx + dx * 18, y: cy + dy * 18, vx: 0, vy: 0, r: r, damage: dmg, life: 12, color: col, single: single, bleed: bleed });
+    } else if (kind === 'shot') {
+      let dmg = sk.damage;
+      if (hawkEyeTimer > 0) dmg *= 2;
+      const fireArrow = (ang) => {
+        townProjectiles.push({ kind: 'arrow', x: cx + Math.cos(ang) * 8, y: cy + Math.sin(ang) * 8, vx: Math.cos(ang) * 5.5, vy: Math.sin(ang) * 5.5, r: 4, damage: dmg, life: 55, color: col, distScale: mod === 'precise', spawnX: cx, spawnY: cy });
+      };
+      const baseAng = Math.atan2(dy, dx);
+      if (mod === 'fan') { fireArrow(baseAng - 0.28); fireArrow(baseAng); fireArrow(baseAng + 0.28); }
+      else fireArrow(baseAng);
+    }
+
+    flashSkillMsg(sk.name + ' Lv.' + sk.level);
+  }
+
+  function flashSkillMsg(msg) {
+    messageDiv.textContent = msg;
+    setTimeout(() => { if (messageDiv.textContent === msg) messageDiv.textContent = ''; }, 1000);
+  }
+
+  function weaponAllowsSkill(sk, kind) {
+    const w = townPlayer && townPlayer.slots && townPlayer.slots.weapon;
+    if (kind === 'chicken') {
+      if (!w || w.id !== 'totem_chicken') {
+        messageDiv.textContent = 'Нужен «Тотем призыва курицы» (Искатель, 3 золота)';
+        setTimeout(() => { if (messageDiv.textContent.indexOf('Тотем призыва курицы') !== -1) messageDiv.textContent = ''; }, 1400);
+        return false;
+      }
+      return true;
+    }
+    if (w && w.id === 'totem_chicken') {
+      messageDiv.textContent = 'Тотем курицы умеет только «Призыв курицы»';
+      setTimeout(() => { if (messageDiv.textContent.indexOf('Тотем курицы') !== -1) messageDiv.textContent = ''; }, 1200);
+      return false;
+    }
+    if (w && w.broken && kind !== 'skel_guard') {
+      messageDiv.textContent = 'Тотем сломан — только «Скелет-страж» или почини';
+      setTimeout(() => { if (messageDiv.textContent.indexOf('сломан') !== -1) messageDiv.textContent = ''; }, 1400);
+      return false;
+    }
+    return true;
+  }
+
+  function hasSkillMod(id) { return !!skillModsOwned[id]; }
+
+  function skillNeedsCharge(sk) {
+    if (!sk) return false;
+    if (sk.kind === 'sniper' || sk.charge) return true;
+    if (sk.kind === 'orb' && sk.mod === 'charged') return true;
+    return false;
+  }
+
+  function beginHotbarCharge(slot) {
+    if (!townPlayer || rpgUi || paused || insideHouse) return;
+    if (townSkillCd > 0) return;
+    const sk = getHotbarSkill(slot);
+    if (!sk) return;
+    if (skillNeedsCharge(sk)) {
+      skillCharge = { slot: slot, startFrame: frame, skillId: sk.id };
+      messageDiv.textContent = sk.kind === 'sniper' ? 'Заряд снайпера…' : 'Заряд шара…';
+      return;
+    }
+    castHotbarSlot(slot);
+  }
+
+  function releaseHotbarCharge() {
+    if (!skillCharge) return;
+    const held = frame - skillCharge.startFrame;
+    const slot = skillCharge.slot;
+    skillCharge = null;
+    castHotbarSlot(slot, { chargeFrames: held });
+  }
+
+  function countMinionsOf(role) {
+    let n = 0;
+    for (let m of summonedMinions) if (m.role === role && m.hp > 0) n++;
+    return n;
+  }
+
+  function nearestMinion(cx, cy) {
+    let best = null, bd = 1e9;
+    for (let m of summonedMinions) {
+      if (m.hp <= 0) continue;
+      const d = Math.hypot(m.x + m.w / 2 - cx, m.y + m.h / 2 - cy);
+      if (d < bd) { bd = d; best = m; }
+    }
+    return best;
+  }
+
+  function removeMinion(m) {
+    summonedMinions = summonedMinions.filter(x => x !== m && x.id !== m.id);
+  }
+
+  function spawnMinion(role, x, y, sk) {
+    const guardSk = townPlayer.skills.find(s => s.id === 'skel_guard');
+    const mod = (guardSk && guardSk.mod) || null;
+    let hp = role === 'mage' ? 4 : 8;
+    let dmg = sk.damage || 1;
+    let speed = role === 'mage' ? 1.1 : 1.35;
+    let range = role === 'mage' ? 90 : (mod === 'spear' ? 70 : 26);
+    if (role === 'guard') {
+      if (mod === 'berserk') { dmg = Math.round(dmg * 1.5); speed *= 1.5; }
+      if (mod === 'shield') hp = Math.round(hp * 1.5);
+      if (mod === 'poison') dmg = Math.max(1, Math.round(dmg * 0.85));
+    }
+    summonedMinions.push({
+      id: role + '_' + frame + '_' + Math.floor(Math.random() * 999),
+      role: role, kind: role,
+      x: x, y: y, w: 16, h: 18,
+      hp: hp, maxHp: hp, damage: dmg, speed: speed, range: range,
+      bob: 0, atkCd: 0, life: 0,
+      mod: role === 'guard' ? mod : null,
+      poison: role === 'guard' && mod === 'poison',
+      shieldBlock: role === 'guard' && mod === 'shield',
+      damageMul: 1
+    });
+  }
+
+  function currentCombatTargets() {
+    const list = [];
+    for (let s of fieldSlimes) if (s.alive) list.push(s);
+    if (typeof guildDungeonBoss !== 'undefined' && guildDungeonBoss && guildDungeonBoss.alive) list.push(guildDungeonBoss);
+    return list;
+  }
+
+  function nearestAliveEnemy(cx, cy, maxD) {
+    let best = null, bd = maxD || 1e9;
+    for (let t of currentCombatTargets()) {
+      const d = Math.hypot(t.x + (t.w || 0) / 2 - cx, t.y + (t.h || 0) / 2);
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;
+  }
+
+  function killEnemy(t) {
+    if (!t) return;
+    t.alive = false;
+    t.hp = 0;
+    if (t.boss) gainXp(8);
+    else if (t.goblin) gainXp(2);
+    else gainXp(t.kind === 'dungeon' ? 2 : 1);
+    if (!t.goblin && t.kind !== 'dungeon') dropSlimeCore(t.x + (t.w || 0) / 2, t.y + (t.h || 0) / 2);
+  }
+
+  function applyAoEDamage(x, y, r, dmg, opts) {
+    opts = opts || {};
+    for (let t of currentCombatTargets()) {
+      const tx = t.x + (t.w || 0) / 2, ty = t.y + (t.h || 0) / 2;
+      if (Math.hypot(tx - x, ty - y) <= r) {
+        t.hp -= dmg;
+        if (opts.knock) {
+          const d = Math.hypot(tx - x, ty - y) || 1;
+          t.x += ((tx - x) / d) * opts.knock;
+          t.y += ((ty - y) / d) * opts.knock;
+        }
+        if (opts.slow) t.slowTimer = Math.max(t.slowTimer || 0, opts.slow);
+        if (t.hp <= 0) killEnemy(t);
+      }
+    }
   }
 
   function ensureSkillHotbar() {
@@ -4904,7 +5565,7 @@
     return idx >= 0 ? townPlayer.skills[idx] : null;
   }
 
-  function castHotbarSlot(slot) {
+  function castHotbarSlot(slot, opts) {
     if (!townPlayer || rpgUi || paused || insideHouse) return;
     if (townSkillCd > 0) return;
     ensureSkillHotbar();
@@ -4921,7 +5582,7 @@
       townPlayer.skillHotbar[slot] = null;
       return;
     }
-    castTownSkill(idx);
+    castTownSkill(idx, opts);
   }
 
   function fillEmptyHotbarWithSkill(skillId) {
@@ -4962,6 +5623,7 @@
       const cy = townPlayer.y + townPlayer.h / 2;
       if (atBuildingDoor(cx, cy, nearTownBuilding)) return true;
     }
+    if (nearSeekerNpc()) return true;
     return false;
   }
 
@@ -4987,14 +5649,178 @@
         return;
       }
     }
+    if (nearSeekerNpc()) {
+      openShop('seeker');
+      return;
+    }
     // не у двери / сундука / ресурса — второй навык
     castHotbarSlot(1);
   }
 
+  function nearSeekerNpc() {
+    if (!townPlayer || gameState !== STATE.CITY || insideHouse) return false;
+    ensureTownNpcs();
+    const cx = townPlayer.x + townPlayer.w / 2;
+    const cy = townPlayer.y + townPlayer.h / 2;
+    for (let n of townNpcs) {
+      if (n.role !== 'search') continue;
+      if (Math.hypot(cx - n.x, cy - n.y) < 36) return true;
+    }
+    return false;
+  }
+
   function regenMana() {
-    if (!townPlayer || townPlayer.classId !== 'mage') return;
+    if (!townPlayer || !(townPlayer.maxMana > 0)) return;
     if (townPlayer.mana < townPlayer.maxMana) {
       townPlayer.mana = Math.min(townPlayer.maxMana, townPlayer.mana + 0.04);
+    }
+  }
+
+  function updateLevelUpSparkle() {
+    if (!levelUpSparkleActive) return;
+    if (performance.now() >= levelUpSparkleUntil) {
+      levelUpSparkleActive = false;
+      if (pendingLevelUps > 0 && rpgUi !== 'levelup') openLevelUpChoice();
+    }
+  }
+
+  function updateSummonedAlly() {
+    if (summonedAlly) {
+      summonedAlly.life--;
+      summonedAlly.bob += 0.2;
+      if (summonedAlly.kind === 'chicken') {
+        summonedAlly.x += Math.sin(summonedAlly.bob) * 0.55;
+        summonedAlly.y += Math.cos(summonedAlly.bob * 0.8) * 0.35;
+      }
+      if (summonedAlly.life <= 0) summonedAlly = null;
+    }
+    updateSummonedMinions();
+    if (hawkEyeTimer > 0) hawkEyeTimer--;
+    if (possessTimer > 0) {
+      possessTimer--;
+      if (possessTimer <= 0) {
+        for (let m of summonedMinions) {
+          if (m.id === possessMinionId) {
+            m.possessed = false;
+            m.invuln = false;
+            m.damageMul = 1;
+          }
+        }
+        possessMinionId = null;
+      }
+    }
+  }
+
+  function updateSummonedMinions() {
+    if (!townPlayer) return;
+    const targets = currentCombatTargets();
+    const pcx = townPlayer.x + townPlayer.w / 2;
+    const pcy = townPlayer.y + townPlayer.h / 2;
+    for (let i = summonedMinions.length - 1; i >= 0; i--) {
+      const m = summonedMinions[i];
+      m.bob += 0.15;
+      if (m.life > 0) {
+        m.life--;
+        if (m.life <= 0) { summonedMinions.splice(i, 1); continue; }
+      }
+      if (m.mod === 'berserk') {
+        m.hp -= m.maxHp * 0.05 / 60;
+        if (m.hp <= 0) { summonedMinions.splice(i, 1); continue; }
+      }
+      // следование / бой
+      let tx = pcx, ty = pcy, fight = null;
+      let bestD = 1e9;
+      for (let t of targets) {
+        const d = Math.hypot(t.x + (t.w || 0) / 2 - (m.x + m.w / 2), t.y + (t.h || 0) / 2 - (m.y + m.h / 2));
+        if (d < bestD) { bestD = d; fight = t; }
+      }
+      if (m.distract) {
+        // мясо — просто стоит рядом, отвлекая
+      } else if (fight && bestD < (m.range || 26) + 40) {
+        tx = fight.x + (fight.w || 0) / 2;
+        ty = fight.y + (fight.h || 0) / 2;
+        const dx = tx - (m.x + m.w / 2);
+        const dy = ty - (m.y + m.h / 2);
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > (m.range || 26)) {
+          m.x += (dx / d) * m.speed;
+          m.y += (dy / d) * m.speed;
+        } else if (m.atkCd <= 0) {
+          let dmg = (m.damage || 1) * (m.damageMul || 1);
+          fight.hp -= dmg;
+          if (m.poison) fight.bleedTimer = Math.max(fight.bleedTimer || 0, 120);
+          if (m.role === 'mage') fight.slowTimer = Math.max(fight.slowTimer || 0, 90);
+          if (m.possessed) {
+            townPlayer.hp = Math.min(townPlayer.maxHp, townPlayer.hp + Math.max(1, Math.round(dmg * 0.35)));
+          }
+          if (fight.hp <= 0) killEnemy(fight);
+          m.atkCd = m.role === 'mage' ? 40 : 28;
+        }
+      } else {
+        const dx = pcx - (m.x + m.w / 2);
+        const dy = pcy - (m.y + m.h / 2);
+        const d = Math.hypot(dx, dy) || 1;
+        if (d > 40) {
+          m.x += (dx / d) * m.speed * 0.9;
+          m.y += (dy / d) * m.speed * 0.9;
+        }
+      }
+      if (m.atkCd > 0) m.atkCd--;
+    }
+  }
+
+  function getMobChaseTarget(pcx, pcy) {
+    if (summonedAlly && summonedAlly.kind === 'chicken' && summonedAlly.life > 0) {
+      return { x: summonedAlly.x, y: summonedAlly.y, distract: true };
+    }
+    for (let m of summonedMinions) {
+      if (m.distract && m.hp > 0) return { x: m.x + m.w / 2, y: m.y + m.h / 2, distract: true };
+    }
+    // лёгкий аггро на стража рядом
+    for (let m of summonedMinions) {
+      if (m.role === 'guard' && m.hp > 0) {
+        const d = Math.hypot(m.x + m.w / 2 - pcx, m.y + m.h / 2 - pcy);
+        if (d < 100) return { x: m.x + m.w / 2, y: m.y + m.h / 2, distract: false };
+      }
+    }
+    return { x: pcx, y: pcy, distract: false };
+  }
+
+  function mobSpeedMul(m) {
+    if (m.stunTimer > 0) return 0;
+    if (m.slowTimer > 0) return 0.45;
+    if (m.snareTimer > 0) return 0;
+    return 1;
+  }
+
+  function tickMobStatus(m) {
+    if (m.stunTimer > 0) m.stunTimer--;
+    if (m.slowTimer > 0) m.slowTimer--;
+    if (m.snareTimer > 0) m.snareTimer--;
+    if (m.bleedTimer > 0) {
+      m.bleedTimer--;
+      if (m.bleedTimer % 30 === 0) {
+        m.hp -= 0.5;
+        if (m.hp <= 0) killEnemy(m);
+      }
+    }
+  }
+
+  function updateFieldTraps() {
+    for (let i = fieldTraps.length - 1; i >= 0; i--) {
+      const tr = fieldTraps[i];
+      tr.life--;
+      if (tr.life <= 0) { fieldTraps.splice(i, 1); continue; }
+      if (!tr.armed) continue;
+      for (let t of currentCombatTargets()) {
+        const d = Math.hypot(t.x + (t.w || 0) / 2 - tr.x, t.y + (t.h || 0) / 2 - tr.y);
+        if (d < tr.r + 10) {
+          t.snareTimer = 120;
+          tr.armed = false;
+          tr.life = Math.min(tr.life, 30);
+          break;
+        }
+      }
     }
   }
 
@@ -5098,56 +5924,129 @@
         const def = CLASS_DEFS[townPlayer.classId];
         advLevelSpan.textContent = (def ? def.title + ' · ' : '') + 'Lv.' + townPlayer.level;
       }
-      if (townPlayer.classId === 'mage') {
-        townPlayer.maxMana = Math.round((townPlayer.maxMana || 30) * 1.5);
+      if (townPlayer.maxMana > 0) {
+        townPlayer.maxMana = Math.round((townPlayer.maxMana || 5) * 1.5);
         townPlayer.mana = townPlayer.maxMana;
       }
     }
     if (pendingLevelUps > 0 && rpgUi !== 'levelup') {
-      openLevelUpChoice();
+      tryStartLevelUpFlow();
     }
+  }
+
+  function tryStartLevelUpFlow() {
+    if (!townPlayer || pendingLevelUps <= 0 || rpgUi === 'levelup') return;
+    if (townPlayer.classId === 'mage') {
+      if (!levelUpSparkleActive) {
+        levelUpSparkleActive = true;
+        levelUpSparkleUntil = performance.now() + 3000;
+        messageDiv.textContent = 'Новый уровень! Магия вспыхивает блёстками...';
+      }
+      return;
+    }
+    openLevelUpChoice();
   }
 
   function openLevelUpChoice() {
     if (!townPlayer || pendingLevelUps <= 0) return;
+    levelUpSparkleActive = false;
     levelUpChoices = [];
+    const owned = {};
+    for (let s of townPlayer.skills) owned[s.id] = true;
+
+    // модификации стартового навыка (ещё не взятые; одна на ветку)
+    const mods = CLASS_SKILL_MODS[townPlayer.classId] || [];
+    const baseHasMod = {};
+    for (let m of mods) {
+      if (skillModsOwned[m.id]) baseHasMod[m.baseId] = true;
+    }
+    for (let m of mods) {
+      if (skillModsOwned[m.id] || baseHasMod[m.baseId]) continue;
+      if (!owned[m.baseId]) continue;
+      levelUpChoices.push({
+        type: 'mod',
+        mod: m,
+        title: 'Модификация: «' + m.name + '»',
+        desc: m.desc
+      });
+    }
+
+    // навыки, открытые по уровню персонажа
+    const unlocks = CLASS_SKILL_UNLOCKS[townPlayer.classId] || [];
+    for (let u of unlocks) {
+      if (townPlayer.level < u.atLevel) continue;
+      if (owned[u.skill.id]) continue;
+      levelUpChoices.push({
+        type: 'new',
+        skill: Object.assign({}, u.skill),
+        title: 'Выучить «' + u.skill.name + '»',
+        desc: 'Открытие с ур.' + u.atLevel + (u.skill.damage > 0 ? (' · урон ' + u.skill.damage) : '')
+      });
+    }
+
+    // усиление уже известных
     for (let i = 0; i < townPlayer.skills.length; i++) {
       const s = townPlayer.skills[i];
+      let desc = 'Ур. ' + s.level + ' → ' + (s.level + 1);
+      if (s.kind === 'chicken' || s.kind === 'meat_wall') desc += ' · длительность +0.5с';
+      else if (s.damage > 0) desc += ' · урон ' + s.damage + ' → ' + (s.damage + 1);
+      else desc += ' · сила навыка +';
       levelUpChoices.push({
         type: 'upgrade',
         skillIndex: i,
         title: 'Улучшить «' + s.name + '»',
-        desc: 'Ур. ' + s.level + ' → ' + (s.level + 1) + '  ·  урон ' + s.damage + ' → ' + (s.damage + 1)
+        desc: desc
       });
     }
-    const pool = CLASS_SKILL_POOL[townPlayer.classId] || [];
-    const owned = {};
-    for (let s of townPlayer.skills) owned[s.id] = true;
-    for (let sk of pool) {
-      if (owned[sk.id]) continue;
-      levelUpChoices.push({
-        type: 'new',
-        skill: Object.assign({}, sk),
-        title: 'Выучить «' + sk.name + '»',
-        desc: 'Новый навык · ур.1 · урон ' + sk.damage
-      });
-    }
+
     if (!levelUpChoices.length) {
       pendingLevelUps = 0;
       return;
     }
     levelUpFocus = 0;
+    levelUpScroll = 0;
     rpgUi = 'levelup';
     messageDiv.textContent = 'Уровень ' + townPlayer.level + '! Выбери награду';
+  }
+
+  function ensureLevelUpInView() {
+    if (!levelUpChoices.length) {
+      levelUpScroll = 0;
+      return;
+    }
+    levelUpFocus = Math.max(0, Math.min(levelUpChoices.length - 1, levelUpFocus));
+    const maxScroll = Math.max(0, levelUpChoices.length - LEVELUP_VISIBLE);
+    if (levelUpFocus < levelUpScroll) levelUpScroll = levelUpFocus;
+    if (levelUpFocus >= levelUpScroll + LEVELUP_VISIBLE) {
+      levelUpScroll = levelUpFocus - LEVELUP_VISIBLE + 1;
+    }
+    levelUpScroll = Math.max(0, Math.min(maxScroll, levelUpScroll));
   }
 
   function applyLevelUpChoice() {
     const ch = levelUpChoices[levelUpFocus];
     if (!ch || !townPlayer) return;
-    if (ch.type === 'upgrade') {
+    if (ch.type === 'mod') {
+      const mods = CLASS_SKILL_MODS[townPlayer.classId] || [];
+      for (let m of mods) {
+        if (m.baseId === ch.mod.baseId) delete skillModsOwned[m.id];
+      }
+      skillModsOwned[ch.mod.id] = true;
+      const base = townPlayer.skills.find(s => s.id === ch.mod.baseId);
+      if (base) {
+        base.mod = ch.mod.id;
+        const clean = (CLASS_DEFS[townPlayer.classId].skills.find(s => s.id === base.id) || {}).name || base.name;
+        base.name = clean + ' (' + ch.mod.name + ')';
+      }
+      messageDiv.textContent = 'Модификация: ' + ch.mod.name;
+    } else if (ch.type === 'upgrade') {
       const s = townPlayer.skills[ch.skillIndex];
       s.level++;
-      s.damage++;
+      if (s.kind === 'chicken' || s.kind === 'meat_wall') {
+        s.duration = (s.duration || 180) + 30;
+      } else if (s.damage > 0) {
+        s.damage++;
+      }
       messageDiv.textContent = s.name + ' теперь ур.' + s.level + '!';
     } else if (ch.type === 'new') {
       townPlayer.skills.push(Object.assign({}, ch.skill));
@@ -6093,8 +6992,171 @@
       ctx.beginPath();
       ctx.arc(12, 2, 8, -1.2, 1.2);
       ctx.stroke();
+    } else if (classId === 'summoner') {
+      ctx.fillStyle = '#ffb74d';
+      ctx.beginPath();
+      ctx.ellipse(13, 4, 6, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(15, 2, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ef6c00';
+      ctx.fillRect(10, -10, 3, 10);
     }
     ctx.restore();
+  }
+
+  function drawMageLevelSparkles(cx, cy) {
+    if (!levelUpSparkleActive) return;
+    const t = performance.now() / 1000;
+    ctx.save();
+    for (let i = 0; i < 20; i++) {
+      const a = t * 2.8 + i * 0.55;
+      const r = 16 + (i % 5) * 4 + Math.sin(t * 5 + i) * 6;
+      const x = cx + Math.cos(a) * r;
+      const y = cy - 6 + Math.sin(a * 1.35) * r * 0.75;
+      const s = 1.2 + (i % 4) * 0.7;
+      ctx.globalAlpha = 0.4 + 0.55 * Math.abs(Math.sin(t * 7 + i));
+      ctx.fillStyle = (i % 3 === 0) ? '#fff59d' : ((i % 3 === 1) ? '#e1bee7' : '#ffffff');
+      ctx.beginPath();
+      ctx.moveTo(x, y - s * 1.6);
+      ctx.lineTo(x + s * 0.55, y);
+      ctx.lineTo(x, y + s * 1.6);
+      ctx.lineTo(x - s * 0.55, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSummonedAlly() {
+    if (!summonedAlly || summonedAlly.life <= 0) return;
+    const a = summonedAlly;
+    const bounce = Math.sin(a.bob) * 2;
+    ctx.save();
+    ctx.translate(a.x, a.y + bounce);
+    if (a.kind === 'chicken') {
+      ctx.fillStyle = '#fff8e1';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffcc80';
+      ctx.beginPath();
+      ctx.arc(8, -4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ef6c00';
+      ctx.beginPath();
+      ctx.moveTo(12, -4);
+      ctx.lineTo(17, -2);
+      ctx.lineTo(12, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(10, -5, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e53935';
+      ctx.beginPath();
+      ctx.ellipse(-2, -8, 3, 2, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.35 + 0.25 * Math.sin(a.bob * 2);
+      ctx.strokeStyle = '#ffecb3';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 16 + Math.sin(a.bob) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (a.kind === 'toad') {
+      ctx.fillStyle = '#66bb6a';
+      ctx.beginPath();
+      ctx.ellipse(0, 2, 11, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#81c784';
+      ctx.beginPath();
+      ctx.arc(-4, -4, 5, 0, Math.PI * 2);
+      ctx.arc(4, -4, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1b5e20';
+      ctx.beginPath();
+      ctx.arc(-4, -4, 1.5, 0, Math.PI * 2);
+      ctx.arc(4, -4, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#a5d6a7';
+      ctx.beginPath();
+      ctx.arc(0, 0, a.slowRadius || 70, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawTownPlayerExtras() {
+    if (!townPlayer) return;
+    const cx = townPlayer.x + townPlayer.w / 2;
+    const cy = townPlayer.y + townPlayer.h / 2;
+    drawMageLevelSparkles(cx, cy);
+    drawSummonedAlly();
+    drawSummonedMinions();
+    drawFieldTraps();
+  }
+
+  function drawSummonedMinions() {
+    for (let m of summonedMinions) {
+      if (m.hp <= 0) continue;
+      const bounce = Math.sin(m.bob) * 2;
+      ctx.save();
+      ctx.translate(m.x + m.w / 2, m.y + m.h / 2 + bounce);
+      if (m.role === 'meat') {
+        ctx.fillStyle = '#8d6e63';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 9, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (m.role === 'mage') {
+        ctx.fillStyle = '#cfd8dc';
+        ctx.fillRect(-6, -8, 12, 16);
+        ctx.fillStyle = '#81d4fa';
+        ctx.beginPath();
+        ctx.arc(0, -10, 5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#eceff1';
+        ctx.fillRect(-6, -8, 12, 16);
+        ctx.fillStyle = '#90a4ae';
+        ctx.beginPath();
+        ctx.arc(0, -10, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#263238';
+        ctx.fillRect(-3, -11, 2, 2);
+        ctx.fillRect(1, -11, 2, 2);
+      }
+      if (m.possessed) {
+        ctx.strokeStyle = '#7e57c2';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // mini HP
+      ctx.fillStyle = '#c62828';
+      ctx.fillRect(m.x, m.y - 6, m.w, 3);
+      ctx.fillStyle = '#66bb6a';
+      ctx.fillRect(m.x, m.y - 6, m.w * Math.max(0, m.hp / m.maxHp), 3);
+    }
+  }
+
+  function drawFieldTraps() {
+    for (let tr of fieldTraps) {
+      ctx.strokeStyle = tr.armed ? '#a1887f' : '#5d4037';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, tr.r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(161,136,127,0.25)';
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   function drawGuildAdmin(ax, ay) {
@@ -6303,6 +7365,7 @@
       if (!townPlayer) return;
       const p = townPlayer;
       drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId, p.walking ? p.anim : null);
+      drawTownPlayerExtras();
       drawHpBar();
       drawDayNightOverlay();
       // кнопки поверх затемнения ночи — иначе не видно и «не кликается»
@@ -6317,6 +7380,7 @@
     if (!townPlayer) return;
     const p = townPlayer;
     drawTownGnome(p.x + p.w / 2, p.y + p.h / 2, p.facing, p.classId, p.walking ? p.anim : null);
+    drawTownPlayerExtras();
 
     for (let pr of townProjectiles) {
       if (pr.kind === 'orb') {
@@ -6443,7 +7507,8 @@
       itemLevel: opts.itemLevel || 0,
       guildLoot: !!opts.guildLoot,
       broken: !!opts.broken,
-      materialType: opts.materialType || ''
+      materialType: opts.materialType || '',
+      allowSkills: opts.allowSkills ? opts.allowSkills.slice() : null
     };
   }
 
@@ -7100,8 +8165,12 @@
 
     for (let s of fieldSlimes) {
       if (!s.alive) continue;
+      tickMobStatus(s);
+      if (!s.alive) continue;
       s.bob += 0.1;
-      moveMobToward(s, pcx, pcy, zoneSolidAt);
+      const chase = getMobChaseTarget(pcx, pcy);
+      moveMobToward(s, chase.x, chase.y, zoneSolidAt);
+      if (chase.distract || s.stunTimer > 0 || s.snareTimer > 0) continue;
       const dx = pcx - (s.x + s.w / 2);
       const dy = pcy - (s.y + s.h / 2);
       const d = Math.hypot(dx, dy) || 1;
@@ -7120,14 +8189,17 @@
       const b = guildDungeonBoss;
       if (b.alive) {
         b.bob += 0.06;
-        moveMobToward(b, pcx, pcy, zoneSolidAt);
-        const dx = pcx - (b.x + b.w / 2);
-        const dy = pcy - (b.y + b.h / 2);
-        const d = Math.hypot(dx, dy) || 1;
-        if (b.atkCd > 0) b.atkCd--;
-        if (d < 26 && b.atkCd <= 0) {
-          hurtPlayer(b.damage);
-          b.atkCd = 50;
+        const chase = getMobChaseTarget(pcx, pcy);
+        moveMobToward(b, chase.x, chase.y, zoneSolidAt);
+        if (!chase.distract) {
+          const dx = pcx - (b.x + b.w / 2);
+          const dy = pcy - (b.y + b.h / 2);
+          const d = Math.hypot(dx, dy) || 1;
+          if (b.atkCd > 0) b.atkCd--;
+          if (d < 26 && b.atkCd <= 0) {
+            hurtPlayer(b.damage);
+            b.atkCd = 50;
+          }
         }
       }
       if (!b.alive || b.hp <= 0) {
@@ -7186,6 +8258,7 @@
     for (let s of fieldSlimes) if (s.alive) drawGoblin(s);
     if (guildDungeonBoss && guildDungeonBoss.alive) drawGoblin(guildDungeonBoss);
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawTownPlayerExtras();
     drawProjectiles();
     drawHpBar();
     drawDayNightOverlay();
@@ -7265,6 +8338,7 @@
     if (shopKind === 'weapons') return WEAPON_SHOP;
     if (shopKind === 'potions') return POTION_SHOP;
     if (shopKind === 'flowers') return FLOWER_SHOP;
+    if (shopKind === 'seeker') return SEEKER_SHOP;
     if (shopKind === 'guild') {
       return [
         {
@@ -7364,7 +8438,7 @@
     }
     payFor(entry);
     const item = makeItem(
-      'buy_' + entry.name + '_' + frame,
+      entry.id || ('buy_' + entry.name + '_' + frame),
       entry.name,
       entry.slot,
       {
@@ -7373,11 +8447,19 @@
         heal: entry.heal || 0,
         desc: entry.desc || '',
         manaHeal: entry.mana || 0,
-        itemLevel: entry.itemLevel || (entry.slot === 'weapon' || entry.armor ? 1 : 0)
+        itemLevel: entry.itemLevel || (entry.slot === 'weapon' || entry.armor ? 1 : 0),
+        allowSkills: entry.allowSkills ? entry.allowSkills.slice() : null
       }
     );
     if (entry.mana) item.manaHeal = entry.mana;
     townPlayer.bag.push(item);
+    if (entry.teachSkill) {
+      const ts = entry.teachSkill;
+      if (!townPlayer.skills.some(s => s.id === ts.id)) {
+        townPlayer.skills.push(Object.assign({}, ts));
+        fillEmptyHotbarWithSkill(ts.id);
+      }
+    }
     messageDiv.textContent = 'Куплено: ' + entry.name;
     updateUI();
   }
@@ -7939,10 +9021,12 @@
     if (rpgUi === 'levelup') {
       if (e.key === 'ArrowUp') {
         levelUpFocus = (levelUpFocus + levelUpChoices.length - 1) % levelUpChoices.length;
+        ensureLevelUpInView();
         return true;
       }
       if (e.key === 'ArrowDown') {
         levelUpFocus = (levelUpFocus + 1) % levelUpChoices.length;
+        ensureLevelUpInView();
         return true;
       }
       if (e.key === 'Enter' || e.key === ' ') {
@@ -8163,6 +9247,7 @@
 
     if (rpgUi === 'levelup') {
       menuHitBoxes = [];
+      ensureLevelUpInView();
       ctx.fillStyle = '#1a2035';
       ctx.fillRect(160, 50, 480, 350);
       ctx.strokeStyle = '#f7d44a';
@@ -8174,31 +9259,55 @@
       ctx.fillText('Новый уровень ' + townPlayer.level + '!', W / 2, 90);
       ctx.fillStyle = '#b0bec5';
       ctx.font = '14px Segoe UI, Arial';
-      ctx.fillText('Выбери навык или улучшение', W / 2, 118);
-      let y = 150;
-      for (let i = 0; i < levelUpChoices.length; i++) {
+      ctx.fillText('Выбери навык или улучшение · колесо мыши', W / 2, 118);
+
+      const listTop = 140;
+      const listH = LEVELUP_VISIBLE * 56;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(180, listTop - 4, 440, listH + 8);
+      ctx.clip();
+
+      let y = listTop;
+      const end = Math.min(levelUpChoices.length, levelUpScroll + LEVELUP_VISIBLE);
+      for (let i = levelUpScroll; i < end; i++) {
         const ch = levelUpChoices[i];
-        menuHitBoxes.push({ x: 190, y: y, w: 420, h: 48, index: i });
+        const rowY = y;
+        menuHitBoxes.push({ x: 190, y: rowY, w: 420, h: 48, index: i });
         const hovered = uiHover && uiHover.kind === 'menu' && uiHover.index === i;
         const sel = i === levelUpFocus || hovered;
         ctx.fillStyle = hovered ? '#5c6bc0' : (sel ? '#3949ab' : '#263238');
-        ctx.fillRect(190, y, 420, 48);
+        ctx.fillRect(190, rowY, 420, 48);
         ctx.strokeStyle = sel ? '#fff59d' : '#546e7a';
         ctx.lineWidth = hovered ? 3 : 1;
-        ctx.strokeRect(190, y, 420, 48);
+        ctx.strokeRect(190, rowY, 420, 48);
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 15px Segoe UI, Arial';
         ctx.textAlign = 'left';
-        ctx.fillText(ch.title, 205, y + 20);
+        ctx.fillText(ch.title, 205, rowY + 20);
         ctx.fillStyle = '#90a4ae';
         ctx.font = '12px Segoe UI, Arial';
-        ctx.fillText(ch.desc, 205, y + 38);
+        ctx.fillText(ch.desc, 205, rowY + 38);
         y += 56;
       }
+      ctx.restore();
+
+      // скролл-индикатор
+      if (levelUpChoices.length > LEVELUP_VISIBLE) {
+        const trackX = 620, trackY = listTop, trackH = listH;
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(trackX, trackY, 6, trackH);
+        const thumbH = Math.max(18, trackH * (LEVELUP_VISIBLE / levelUpChoices.length));
+        const maxScroll = Math.max(1, levelUpChoices.length - LEVELUP_VISIBLE);
+        const thumbY = trackY + (trackH - thumbH) * (levelUpScroll / maxScroll);
+        ctx.fillStyle = '#f7d44a';
+        ctx.fillRect(trackX, thumbY, 6, thumbH);
+      }
+
       ctx.fillStyle = '#b0bec5';
       ctx.font = '13px Segoe UI, Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('Наведи — выделить · ЛКМ — выбрать', W / 2, 380);
+      ctx.fillText('Колесо / ↑↓ — листать · ЛКМ / Enter — выбрать', W / 2, 380);
       return;
     }
 
@@ -8427,6 +9536,24 @@
   function moveRpgActor(solidFn) {
     const p = townPlayer;
     if (!p || rpgUi) { if (p) p.walking = false; return; }
+    if (possessTimer > 0) {
+      // одержимость: игрок в стазисе, двигаем миньона
+      p.walking = false;
+      const m = summonedMinions.find(x => x.id === possessMinionId);
+      if (m) {
+        let dx = 0, dy = 0;
+        if (keys.ArrowLeft) dx -= 1;
+        if (keys.ArrowRight) dx += 1;
+        if (keys.ArrowUp) dy -= 1;
+        if (keys.ArrowDown) dy += 1;
+        if (dx || dy) {
+          const len = Math.hypot(dx, dy) || 1;
+          m.x += (dx / len) * m.speed * 1.4;
+          m.y += (dy / len) * m.speed * 1.4;
+        }
+      }
+      return;
+    }
     if (p.slowTimer > 0) p.slowTimer--;
     p.walking = false;
     let dx = 0, dy = 0;
@@ -8455,27 +9582,50 @@
   function updateProjectilesAndSkills(hitTargets) {
     if (townSkillCd > 0) townSkillCd--;
     if (townPunchCd > 0) townPunchCd--;
+    updateFieldTraps();
     for (let i = townProjectiles.length - 1; i >= 0; i--) {
       const pr = townProjectiles[i];
       pr.x += pr.vx;
       pr.y += pr.vy;
       pr.life--;
       let hit = false;
+      let pierceLeft = pr.pierce || 0;
       if (hitTargets) {
         for (let t of hitTargets) {
           if (!t.alive) continue;
+          if (pr._hitIds && pr._hitIds[t.x + ':' + t.y]) continue;
           const tr = t.r || 12;
-          if (Math.hypot(pr.x - (t.x + (t.w || 0) / 2), pr.y - (t.y + (t.h || 0) / 2)) < tr + (pr.r || 6)) {
-            t.hp -= pr.damage;
+          const tcx = t.x + (t.w || 0) / 2;
+          const tcy = t.y + (t.h || 0) / 2;
+          if (Math.hypot(pr.x - tcx, pr.y - tcy) < tr + (pr.r || 6)) {
+            let dmg = pr.damage || 0;
+            if (pr.distScale && pr.spawnX != null) {
+              const dist = Math.hypot(pr.x - pr.spawnX, pr.y - pr.spawnY);
+              dmg = Math.max(1, Math.round(dmg * (1 + dist / 180)));
+            }
+            if (pr.armorIgnore) dmg = Math.round(dmg * (1 + pr.armorIgnore));
+            t.hp -= dmg;
+            if (pr.knock) {
+              const d = Math.hypot(tcx - pr.x, tcy - pr.y) || 1;
+              t.x += ((tcx - pr.x) / d) * pr.knock;
+              t.y += ((tcy - pr.y) / d) * pr.knock;
+            }
+            if (pr.slow) t.slowTimer = Math.max(t.slowTimer || 0, pr.slow);
+            if (pr.bleed) t.bleedTimer = Math.max(t.bleedTimer || 0, pr.bleed);
             hit = true;
+            if (!pr._hitIds) pr._hitIds = {};
+            pr._hitIds[t.x + ':' + t.y] = true;
             if (t.hp <= 0) {
-              t.alive = false;
-              if (t.boss) gainXp(8);
-              else if (t.goblin) gainXp(2);
-              else gainXp(t.kind === 'dungeon' ? 2 : 1);
-              if (!t.goblin && t.kind !== 'dungeon') {
-                dropSlimeCore(t.x + (t.w || 0) / 2, t.y + (t.h || 0) / 2);
-              }
+              const killed = t;
+              killEnemy(t);
+              if (pr.shatter) applyAoEDamage(tcx, tcy, 42, Math.max(1, Math.round(dmg * 0.7)));
+            }
+            if (pr.single) pierceLeft = 0;
+            if (pierceLeft > 0) {
+              pierceLeft--;
+              pr.pierce = pierceLeft;
+              hit = false;
+              continue;
             }
             break;
           }
@@ -8555,10 +9705,11 @@
 
   function drawHpBar() {
     if (!townPlayer) return;
-    const isMage = townPlayer.classId === 'mage' && townPlayer.maxMana > 0;
-    const boxH = isMage ? 72 : 56;
-    const w = 140;
-    const x = W - 158;
+    const box = hpBarBox();
+    const usesMana = townPlayer.maxMana > 0;
+    const boxH = box.boxH;
+    const w = box.w;
+    const x = box.x;
     ctx.fillStyle = 'rgba(10, 16, 32, 0.55)';
     ctx.fillRect(x - 6, 8, w + 16, boxH);
     ctx.strokeStyle = 'rgba(180, 220, 255, 0.4)';
@@ -8567,15 +9718,17 @@
     drawCrystalBar(x, 14, w, 12, townPlayer.hp / townPlayer.maxHp, '#ff8a80', '#c62828');
     drawCrystalBar(x, 30, w, 8, townPlayer.xpToNext ? townPlayer.xp / townPlayer.xpToNext : 0, '#81d4fa', '#1565c0');
     let ty = 52;
-    if (isMage) {
-      drawCrystalBar(x, 42, w, 10, townPlayer.mana / townPlayer.maxMana, '#ce93d8', '#6a1b9a');
+    if (usesMana) {
+      const manaCol = townPlayer.classId === 'summoner' ? '#ffcc80' : '#ce93d8';
+      const manaBg = townPlayer.classId === 'summoner' ? '#e65100' : '#6a1b9a';
+      drawCrystalBar(x, 42, w, 10, townPlayer.mana / townPlayer.maxMana, manaCol, manaBg);
       ty = 64;
     }
     ctx.fillStyle = '#e3f2fd';
     ctx.font = '11px Segoe UI, Arial';
     ctx.textAlign = 'left';
     let line = 'HP ' + Math.ceil(townPlayer.hp) + '/' + townPlayer.maxHp + '  Lv.' + townPlayer.level;
-    if (isMage) line = 'HP ' + Math.ceil(townPlayer.hp) + '/' + townPlayer.maxHp + '  MP ' + Math.floor(townPlayer.mana) + '/' + townPlayer.maxMana;
+    if (usesMana) line = 'HP ' + Math.ceil(townPlayer.hp) + '/' + townPlayer.maxHp + '  MP ' + Math.floor(townPlayer.mana) + '/' + townPlayer.maxMana;
     ctx.fillText(line, x, ty);
     if (townPlayer.slowTimer > 0) {
       ctx.fillStyle = '#ffe082';
@@ -9059,7 +10212,7 @@
     let dx = aimX - cx;
     let dy = aimY - cy;
     const dist = Math.hypot(dx, dy) || 1;
-    const spd = m.speed;
+    const spd = m.speed * mobSpeedMul(m);
     const sx = (dx / dist) * spd;
     const sy = (dy / dist) * spd;
 
@@ -9218,6 +10371,7 @@
     ctx.fillText('Поляна у города — выбери сторону', W / 2, 30);
 
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawTownPlayerExtras();
     drawHpBar();
     drawDayNightOverlay();
     drawRpgPanels();
@@ -9225,11 +10379,25 @@
 
   function hurtPlayer(dmg) {
     if (invulnTimer > 0) return;
+    // щитоносец блокирует 1 попадание
+    for (let m of summonedMinions) {
+      if (m.shieldBlock && m.hp > 0) {
+        m.shieldBlock = false;
+        messageDiv.textContent = 'Щитоносец перехватил удар!';
+        invulnTimer = 20;
+        return;
+      }
+    }
+    if (playerBlockCharges > 0) {
+      playerBlockCharges--;
+      invulnTimer = 30;
+      messageDiv.textContent = 'Стальной блок!';
+      return;
+    }
     const real = Math.max(1, dmg - getArmorTotal());
     townPlayer.hp -= real;
     invulnTimer = 45;
     messageDiv.textContent = '−' + real + ' HP';
-    // шанс сломать экипированное оружие
     if (townPlayer.slots && townPlayer.slots.weapon && !townPlayer.slots.weapon.broken && Math.random() < 0.12) {
       markBroken(townPlayer.slots.weapon);
       messageDiv.textContent = '−' + real + ' HP · оружие сломалось!';
@@ -9252,8 +10420,12 @@
     const pcy = p.y + p.h / 2;
     for (let s of fieldSlimes) {
       if (!s.alive) continue;
+      tickMobStatus(s);
+      if (!s.alive) continue;
       s.bob += 0.1;
-      moveMobToward(s, pcx, pcy, zoneSolidAt);
+      const chase = getMobChaseTarget(pcx, pcy);
+      moveMobToward(s, chase.x, chase.y, zoneSolidAt);
+      if (chase.distract || s.stunTimer > 0 || s.snareTimer > 0) continue;
       const dx = pcx - (s.x + s.w / 2);
       const dy = pcy - (s.y + s.h / 2);
       const d = Math.hypot(dx, dy) || 1;
@@ -9312,6 +10484,7 @@
     for (let s of fieldSlimes) drawSlime(s);
     drawFieldDrops();
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawTownPlayerExtras();
     drawProjectiles();
     drawHpBar();
     drawDayNightOverlay();
@@ -9332,8 +10505,12 @@
     const pcy = p.y + p.h / 2;
     for (let s of fieldSlimes) {
       if (!s.alive) continue;
+      tickMobStatus(s);
+      if (!s.alive) continue;
       s.bob += 0.08;
-      moveMobToward(s, pcx, pcy, zoneSolidAt);
+      const chase = getMobChaseTarget(pcx, pcy);
+      moveMobToward(s, chase.x, chase.y, zoneSolidAt);
+      if (chase.distract || s.stunTimer > 0 || s.snareTimer > 0) continue;
       const dx = pcx - (s.x + s.w / 2);
       const dy = pcy - (s.y + s.h / 2);
       const d = Math.hypot(dx, dy) || 1;
@@ -9396,6 +10573,7 @@
     drawZoneObstacles();
     for (let s of fieldSlimes) drawSlime(s);
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawTownPlayerExtras();
     drawProjectiles();
     drawHpBar();
     drawDayNightOverlay();
@@ -9467,6 +10645,7 @@
       ctx.fillText(n.name, n.x, n.y + 22);
     }
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawTownPlayerExtras();
     drawHpBar();
     drawDayNightOverlay();
     drawRpgPanels();
@@ -9515,6 +10694,7 @@
       ctx.fillText(n.name, n.x, n.y + 26);
     }
     drawTownGnome(townPlayer.x + townPlayer.w / 2, townPlayer.y + townPlayer.h / 2, townPlayer.facing, townPlayer.classId, townPlayer.walking ? townPlayer.anim : null);
+    drawTownPlayerExtras();
     drawHpBar();
     drawDayNightOverlay();
     drawRpgPanels();
@@ -9669,12 +10849,6 @@
 
   canvas.addEventListener('contextmenu', ev => {
     ev.preventDefault();
-    const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
-      gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
-      gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
-    if (inRpg && townPlayer && !rpgUi && !insideHouse && !paused) {
-      castHotbarSlot(0);
-    }
   });
 
   canvas.addEventListener('mousedown', ev => {
@@ -9687,13 +10861,13 @@
     mousePos.x = p.x;
     mousePos.y = p.y;
 
-    // ПКМ — первый слот навыков
+    // ПКМ — первый слот навыков (заряд для шара/снайпера)
     if (ev.button === 2) {
       const inRpg = gameState === STATE.CITY || gameState === STATE.HUB ||
         gameState === STATE.SLIMES || gameState === STATE.DUNGEON || gameState === STATE.GATHER ||
         gameState === STATE.GUILD_DUNGEON || gameState === STATE.GUILD_GATHER;
       if (inRpg && townPlayer && !rpgUi && !insideHouse && !paused) {
-        castHotbarSlot(0);
+        beginHotbarCharge(0);
         ev.preventDefault();
       }
       return;
@@ -9902,6 +11076,10 @@
 
   canvas.addEventListener('mouseup', ev => {
     const p = canvasPos(ev);
+
+    if (ev.button === 2) {
+      releaseHotbarCharge();
+    }
 
     if (skillDrag && townPlayer) {
       ensureSkillHotbar();
